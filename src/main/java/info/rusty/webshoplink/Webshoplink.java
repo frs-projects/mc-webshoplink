@@ -131,17 +131,12 @@ public class Webshoplink {
             return 0;
         }
         
-        // Create a unique identifier for this shop process
-        UUID processId = UUID.randomUUID();
-        
-        // Create a shop process and save the player's current inventory
-        ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, captureInventory(player));
-        ACTIVE_SHOP_PROCESSES.put(processId, shopProcess);
+        // Capture the player's current inventory for later verification
+        InventorySnapshot inventorySnapshot = captureInventory(player);
         
         // Create request payload
         Map<String, Object> payload = new HashMap<>();
         payload.put("playerId", player.getStringUUID());
-        payload.put("processId", processId.toString());
         payload.put("type", type);
         payload.put("inventory", serializeInventory(player.getInventory()));
         payload.put("enderChest", serializeEnderChest(player));
@@ -164,40 +159,49 @@ public class Webshoplink {
                     // Parse the response
                     ShopResponse shopResponse = GSON.fromJson(response.body(), ShopResponse.class);
                     
-                    // Store the response data in the shop process
-                    shopProcess.setWebLink(shopResponse.getLink());
-                    shopProcess.setTwoFactorCode(shopResponse.getTwoFactorCode());
-                    
-                    // Send the response to the player
-                    Component linkComponent = Component.literal("Click the following link to open the shop: ")
-                            .append(Component.literal(shopResponse.getLink())
-                                    .withStyle(Style.EMPTY
-                                            .withColor(net.minecraft.ChatFormatting.BLUE)
-                                            .withUnderlined(true)
-                                            .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, shopResponse.getLink()))
-                                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to open shop")))));
-                    
-                    Component codeComponent = Component.literal("Use this Code to verify your identity: ")
-                            .append(Component.literal(shopResponse.getTwoFactorCode())
-                                    .withStyle(Style.EMPTY.withColor(net.minecraft.ChatFormatting.GREEN)));
-                    
-                    player.sendSystemMessage(linkComponent);
-                    player.sendSystemMessage(codeComponent);
+                    try {
+                        // Get the process ID from the response
+                        UUID processId = UUID.fromString(shopResponse.getProcessId());
+                        
+                        // Create a shop process and save the player's current inventory
+                        ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot);
+                        ACTIVE_SHOP_PROCESSES.put(processId, shopProcess);
+                        
+                        // Store the response data in the shop process
+                        shopProcess.setWebLink(shopResponse.getLink());
+                        shopProcess.setTwoFactorCode(shopResponse.getTwoFactorCode());
+                        
+                        // Send the response to the player
+                        Component linkComponent = Component.literal("Click the following link to open the shop: ")
+                                .append(Component.literal(shopResponse.getLink())
+                                        .withStyle(Style.EMPTY
+                                                .withColor(net.minecraft.ChatFormatting.BLUE)
+                                                .withUnderlined(true)
+                                                .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, shopResponse.getLink()))
+                                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to open shop")))));
+                        
+                        Component codeComponent = Component.literal("Use this Code to verify your identity: ")
+                                .append(Component.literal(shopResponse.getTwoFactorCode())
+                                        .withStyle(Style.EMPTY.withColor(net.minecraft.ChatFormatting.GREEN)));
+                        
+                        player.sendSystemMessage(linkComponent);
+                        player.sendSystemMessage(codeComponent);
+                    } catch (IllegalArgumentException e) {
+                        LOGGER.error("Invalid processId received from server: " + shopResponse.getProcessId(), e);
+                        player.sendSystemMessage(Component.literal("Error processing shop response. Please try again later."));
+                    }
                     
                 } catch (Exception e) {
                     LOGGER.error("Error processing shop response", e);
                     player.sendSystemMessage(Component.literal("Error processing shop response. Please try again later."));
-                    ACTIVE_SHOP_PROCESSES.remove(processId);
                 }
             } else {
                 LOGGER.error("Error from shop API: " + response.statusCode() + " - " + response.body());
                 player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
-                ACTIVE_SHOP_PROCESSES.remove(processId);
             }
         }).exceptionally(e -> {
             LOGGER.error("Error connecting to shop API", e);
             player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
-            ACTIVE_SHOP_PROCESSES.remove(processId);
             return null;
         });
         
