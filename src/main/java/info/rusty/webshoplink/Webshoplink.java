@@ -2,13 +2,16 @@ package info.rusty.webshoplink;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.logging.LogUtils;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -23,6 +26,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -92,10 +96,10 @@ public class Webshoplink {
         event.getDispatcher().register(
             Commands.literal("shop")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
-                .then(Commands.argument("type", net.minecraft.commands.arguments.StringArgumentType.string())
+                .then(Commands.argument("type", StringArgumentType.string())
                     .executes(context -> {
                         return executeShopCommand(context.getSource(), 
-                            net.minecraft.commands.arguments.StringArgumentType.getString(context, "type"));
+                            StringArgumentType.getString(context, "type"));
                     })
                 )
         );
@@ -104,10 +108,10 @@ public class Webshoplink {
         event.getDispatcher().register(
             Commands.literal("shopFinish")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
-                .then(Commands.argument("uuid", net.minecraft.commands.arguments.StringArgumentType.string())
+                .then(Commands.argument("uuid", StringArgumentType.string())
                     .executes(context -> {
                         return executeShopFinishCommand(context.getSource(), 
-                            net.minecraft.commands.arguments.StringArgumentType.getString(context, "uuid"));
+                            StringArgumentType.getString(context, "uuid"));
                     })
                 )
         );
@@ -116,10 +120,10 @@ public class Webshoplink {
         event.getDispatcher().register(
             Commands.literal("confirmFinish")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
-                .then(Commands.argument("uuid", net.minecraft.commands.arguments.StringArgumentType.string())
+                .then(Commands.argument("uuid", StringArgumentType.string())
                     .executes(context -> {
                         return executeConfirmFinishCommand(context.getSource(), 
-                            net.minecraft.commands.arguments.StringArgumentType.getString(context, "uuid"));
+                            StringArgumentType.getString(context, "uuid"));
                     })
                 )
         );
@@ -136,7 +140,7 @@ public class Webshoplink {
         
         // Create request payload
         Map<String, Object> payload = new HashMap<>();
-        payload.put("playerId", player.getStringUUID());
+        payload.put("playerId", player.getUUID().toString());
         payload.put("type", type);
         payload.put("inventory", serializeInventory(player.getInventory()));
         payload.put("enderChest", serializeEnderChest(player));
@@ -175,14 +179,14 @@ public class Webshoplink {
                         Component linkComponent = Component.literal("Click the following link to open the shop: ")
                                 .append(Component.literal(shopResponse.getLink())
                                         .withStyle(Style.EMPTY
-                                                .withColor(net.minecraft.ChatFormatting.BLUE)
+                                                .withColor(ChatFormatting.BLUE)
                                                 .withUnderlined(true)
                                                 .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, shopResponse.getLink()))
                                                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to open shop")))));
                         
                         Component codeComponent = Component.literal("Use this Code to verify your identity: ")
                                 .append(Component.literal(shopResponse.getTwoFactorCode())
-                                        .withStyle(Style.EMPTY.withColor(net.minecraft.ChatFormatting.GREEN)));
+                                        .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN)));
                         
                         player.sendSystemMessage(linkComponent);
                         player.sendSystemMessage(codeComponent);
@@ -225,7 +229,7 @@ public class Webshoplink {
             
             // Create request payload
             Map<String, Object> payload = new HashMap<>();
-            payload.put("playerId", player.getStringUUID());
+            payload.put("playerId", player.getUUID().toString());
             payload.put("processId", processId.toString());
             
             // Send HTTP request
@@ -255,10 +259,10 @@ public class Webshoplink {
                         
                         // Create the confirmation message with a clickable button
                         Component confirmComponent = Component.literal("Your shopping cart contains the following changes:\n")
-                                .append(Component.literal(diff).withStyle(Style.EMPTY.withColor(net.minecraft.ChatFormatting.GRAY)))
+                                .append(Component.literal(diff).withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)))
                                 .append(Component.literal("\n\nClick here to confirm and apply these changes")
                                         .withStyle(Style.EMPTY
-                                                .withColor(net.minecraft.ChatFormatting.GREEN)
+                                                .withColor(ChatFormatting.GREEN)
                                                 .withUnderlined(true)
                                                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/confirmFinish " + processId))
                                                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to confirm purchase")))));
@@ -328,26 +332,28 @@ public class Webshoplink {
     // Helper methods
     
     private InventorySnapshot captureInventory(Player player) {
-        ItemStack[] mainInventory = new ItemStack[player.getInventory().items.size()];
-        ItemStack[] armorInventory = new ItemStack[player.getInventory().armor.size()];
-        ItemStack[] offhandInventory = new ItemStack[player.getInventory().offhand.size()];
-        ItemStack[] enderChest = new ItemStack[player.getEnderChestInventory().items.size()];
+        Inventory inventory = player.getInventory();
+        int mainSize = inventory.getContainerSize() - inventory.armor.size() - inventory.offhand.size();
+        ItemStack[] mainInventory = new ItemStack[mainSize];
+        ItemStack[] armorInventory = new ItemStack[inventory.armor.size()];
+        ItemStack[] offhandInventory = new ItemStack[inventory.offhand.size()];
+        ItemStack[] enderChest = new ItemStack[player.getEnderChestInventory().getContainerSize()];
         
         // Copy all items to prevent reference issues
-        for (int i = 0; i < player.getInventory().items.size(); i++) {
-            mainInventory[i] = player.getInventory().items.get(i).copy();
+        for (int i = 0; i < mainSize; i++) {
+            mainInventory[i] = inventory.getItem(i).copy();
         }
         
-        for (int i = 0; i < player.getInventory().armor.size(); i++) {
-            armorInventory[i] = player.getInventory().armor.get(i).copy();
+        for (int i = 0; i < inventory.armor.size(); i++) {
+            armorInventory[i] = inventory.armor.get(i).copy();
         }
         
-        for (int i = 0; i < player.getInventory().offhand.size(); i++) {
-            offhandInventory[i] = player.getInventory().offhand.get(i).copy();
+        for (int i = 0; i < inventory.offhand.size(); i++) {
+            offhandInventory[i] = inventory.offhand.get(i).copy();
         }
         
-        for (int i = 0; i < player.getEnderChestInventory().items.size(); i++) {
-            enderChest[i] = player.getEnderChestInventory().items.get(i).copy();
+        for (int i = 0; i < player.getEnderChestInventory().getContainerSize(); i++) {
+            enderChest[i] = player.getEnderChestInventory().getItem(i).copy();
         }
         
         return new InventorySnapshot(mainInventory, armorInventory, offhandInventory, enderChest);
@@ -395,29 +401,29 @@ public class Webshoplink {
         player.getInventory().clearContent();
         
         // Apply new main inventory
-        for (int i = 0; i < newInventory.getMainInventory().size() && i < player.getInventory().items.size(); i++) {
+        for (int i = 0; i < newInventory.getMainInventory().size() && i < player.getInventory().getContainerSize(); i++) {
             ItemStackData itemData = newInventory.getMainInventory().get(i);
-            player.getInventory().items.set(i, deserializeItemStack(itemData));
+            player.getInventory().setItem(i, deserializeItemStack(itemData));
         }
         
         // Apply new armor
-        for (int i = 0; i < newInventory.getArmorInventory().size() && i < player.getInventory().armor.size(); i++) {
+        for (int i = 0; i < newInventory.getArmorInventory().size() && i < 4; i++) {
             ItemStackData itemData = newInventory.getArmorInventory().get(i);
             player.getInventory().armor.set(i, deserializeItemStack(itemData));
         }
         
         // Apply new offhand
-        for (int i = 0; i < newInventory.getOffhandInventory().size() && i < player.getInventory().offhand.size(); i++) {
-            ItemStackData itemData = newInventory.getOffhandInventory().get(i);
-            player.getInventory().offhand.set(i, deserializeItemStack(itemData));
+        if (!newInventory.getOffhandInventory().isEmpty()) {
+            ItemStackData itemData = newInventory.getOffhandInventory().get(0);
+            player.getInventory().offhand.set(0, deserializeItemStack(itemData));
         }
         
         // Apply new enderchest if provided
         if (newInventory.getEnderChest() != null) {
             player.getEnderChestInventory().clearContent();
-            for (int i = 0; i < newInventory.getEnderChest().size() && i < player.getEnderChestInventory().items.size(); i++) {
+            for (int i = 0; i < newInventory.getEnderChest().size() && i < player.getEnderChestInventory().getContainerSize(); i++) {
                 ItemStackData itemData = newInventory.getEnderChest().get(i);
-                player.getEnderChestInventory().items.set(i, deserializeItemStack(itemData));
+                player.getEnderChestInventory().setItem(i, deserializeItemStack(itemData));
             }
         }
     }
@@ -449,8 +455,8 @@ public class Webshoplink {
         List<ItemStackData> enderChest = new ArrayList<>();
         
         // Serialize enderchest
-        for (int i = 0; i < player.getEnderChestInventory().items.size(); i++) {
-            enderChest.add(serializeItemStack(player.getEnderChestInventory().items.get(i)));
+        for (int i = 0; i < player.getEnderChestInventory().getContainerSize(); i++) {
+            enderChest.add(serializeItemStack(player.getEnderChestInventory().getItem(i)));
         }
         
         return enderChest;
@@ -461,7 +467,7 @@ public class Webshoplink {
             return new ItemStackData("minecraft:air", 0, null);
         }
         
-        String itemId = stack.getItem().getRegistryName().toString();
+        String itemId = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem()).toString();
         int count = stack.getCount();
         Map<String, Object> nbt = null;
         
@@ -469,11 +475,47 @@ public class Webshoplink {
         if (stack.hasTag()) {
             // Convert NBT to a map representation
             nbt = new HashMap<>();
-            // Basic implementation - in a real mod you'd need to recursively convert all NBT
-            nbt.put("tag", stack.getTag().toString());
+            
+            // Convert CompoundTag to a serializable map format
+            convertNbtToMap(stack.getTag(), nbt);
         }
         
         return new ItemStackData(itemId, count, nbt);
+    }
+    
+    private void convertNbtToMap(net.minecraft.nbt.CompoundTag tag, Map<String, Object> map) {
+        for (String key : tag.getAllKeys()) {
+            net.minecraft.nbt.Tag nbtElement = tag.get(key);
+            if (nbtElement == null) continue;
+            
+            switch (nbtElement.getId()) {
+                case net.minecraft.nbt.Tag.TAG_COMPOUND:
+                    Map<String, Object> nestedMap = new HashMap<>();
+                    convertNbtToMap((net.minecraft.nbt.CompoundTag) nbtElement, nestedMap);
+                    map.put(key, nestedMap);
+                    break;
+                case net.minecraft.nbt.Tag.TAG_LIST:
+                    net.minecraft.nbt.ListTag listTag = (net.minecraft.nbt.ListTag) nbtElement;
+                    List<Object> list = new ArrayList<>();
+                    for (int i = 0; i < listTag.size(); i++) {
+                        if (listTag.getElementType() == net.minecraft.nbt.Tag.TAG_COMPOUND) {
+                            Map<String, Object> listItemMap = new HashMap<>();
+                            convertNbtToMap(listTag.getCompound(i), listItemMap);
+                            list.add(listItemMap);
+                        } else {
+                            // For primitive types in a list, add their string representation
+                            list.add(listTag.get(i).toString());
+                        }
+                    }
+                    map.put(key, list);
+                    break;
+                default:
+                    // For primitive types (byte, short, int, long, float, double, string, etc.)
+                    // We store their string representation
+                    map.put(key, nbtElement.toString());
+                    break;
+            }
+        }
     }
     
     private ItemStack deserializeItemStack(ItemStackData data) {
@@ -482,7 +524,7 @@ public class Webshoplink {
         }
         
         net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                .getValue(new net.minecraft.resources.ResourceLocation(data.getItemId()));
+                .getValue(new ResourceLocation(data.getItemId()));
         
         if (item == null) {
             LOGGER.warn("Unknown item ID: " + data.getItemId());
@@ -491,10 +533,64 @@ public class Webshoplink {
         
         ItemStack stack = new ItemStack(item, data.getCount());
         
-        // TODO: Handle NBT data properly if needed
-        // This would require a more complex implementation
+        // Handle NBT data if present
+        if (data.getNbt() != null && !data.getNbt().isEmpty()) {
+            net.minecraft.nbt.CompoundTag nbtTag = new net.minecraft.nbt.CompoundTag();
+            convertMapToNbt(data.getNbt(), nbtTag);
+            stack.setTag(nbtTag);
+        }
         
         return stack;
+    }
+    
+    private void convertMapToNbt(Map<String, Object> map, net.minecraft.nbt.CompoundTag compoundTag) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            
+            if (value == null) continue;
+            
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> nestedMap = (Map<String, Object>) value;
+                net.minecraft.nbt.CompoundTag nestedTag = new net.minecraft.nbt.CompoundTag();
+                convertMapToNbt(nestedMap, nestedTag);
+                compoundTag.put(key, nestedTag);
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                
+                if (!list.isEmpty()) {
+                    if (list.get(0) instanceof Map) {
+                        // List of compounds
+                        net.minecraft.nbt.ListTag listTag = new net.minecraft.nbt.ListTag();
+                        for (Object item : list) {
+                            if (item instanceof Map) {
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> itemMap = (Map<String, Object>) item;
+                                net.minecraft.nbt.CompoundTag itemTag = new net.minecraft.nbt.CompoundTag();
+                                convertMapToNbt(itemMap, itemTag);
+                                listTag.add(itemTag);
+                            }
+                        }
+                        compoundTag.put(key, listTag);
+                    } else {
+                        // List of strings or other primitives
+                        net.minecraft.nbt.ListTag listTag = new net.minecraft.nbt.ListTag();
+                        for (Object item : list) {
+                            // We'll treat all list items as strings for simplicity
+                            listTag.add(net.minecraft.nbt.StringTag.valueOf(item.toString()));
+                        }
+                        compoundTag.put(key, listTag);
+                    }
+                }
+            } else {
+                // For primitives, store as string for simplicity
+                // In a real implementation, you'd need to determine the actual type
+                // For simplicity, we'll store most primitives as strings
+                compoundTag.putString(key, value.toString());
+            }
+        }
     }
     
     private String generateInventoryDiff(InventorySnapshot original, InventoryData newInventory) {
@@ -515,9 +611,9 @@ public class Webshoplink {
                 if (origStack.isEmpty() && !("minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0)) {
                     diff.append("+ ").append(newStack.getCount()).append("x ").append(newStack.getItemId()).append("\n");
                 } else if (!origStack.isEmpty() && ("minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0)) {
-                    diff.append("- ").append(origStack.getCount()).append("x ").append(origStack.getItem().getRegistryName()).append("\n");
+                    diff.append("- ").append(origStack.getCount()).append("x ").append(net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(origStack.getItem())).append("\n");
                 } else if (!origStack.isEmpty() && !("minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0)) {
-                    diff.append("Changed: ").append(origStack.getCount()).append("x ").append(origStack.getItem().getRegistryName())
+                    diff.append("Changed: ").append(origStack.getCount()).append("x ").append(net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(origStack.getItem()))
                             .append(" -> ").append(newStack.getCount()).append("x ").append(newStack.getItemId()).append("\n");
                 }
             }
@@ -563,7 +659,7 @@ public class Webshoplink {
             return false;
         }
         
-        String origItemId = original.getItem().getRegistryName().toString();
+        String origItemId = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(original.getItem()).toString();
         int origCount = original.getCount();
         
         return origItemId.equals(newStack.getItemId()) && origCount == newStack.getCount();
