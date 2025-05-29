@@ -138,12 +138,20 @@ public class Webshoplink {
         // Capture the player's current inventory for later verification
         InventorySnapshot inventorySnapshot = captureInventory(player);
         
-        // Create request payload
+        // Create request payload with the new structure
         Map<String, Object> payload = new HashMap<>();
         payload.put("playerId", player.getUUID().toString());
         payload.put("shopSlug", shopSlug);
-        payload.put("inventory", GSON.toJson(serializeInventory(player.getInventory())));
-        payload.put("enderchest", GSON.toJson(serializeEnderChest(player)));
+        
+        // Create inventories object with all inventory types
+        Map<String, Object> inventories = new HashMap<>();
+        InventoryData inventoryData = serializeInventory(player);
+        inventories.put("mainInventory", inventoryData.getMainInventory());
+        inventories.put("armorInventory", inventoryData.getArmorInventory());
+        inventories.put("offhandInventory", inventoryData.getOffhandInventory());
+        inventories.put("enderChestInventory", inventoryData.getEnderChest());
+        
+        payload.put("inventories", inventories);
         
         // Send HTTP request
         String jsonPayload = GSON.toJson(payload);
@@ -262,7 +270,6 @@ public class Webshoplink {
                         
                         // Store the new inventory in the shop process
                         shopProcess.setNewInventory(finishResponse.getInventory());
-                        shopProcess.setNewEnderChest(finishResponse.getEnderChest());
                         
                         // Generate and show a diff to the player
                         String diff = generateInventoryDiff(shopProcess.getOriginalInventory(), finishResponse.getInventory());
@@ -420,6 +427,17 @@ public class Webshoplink {
             }
         }
         
+        // Check enderChest
+        if (snapshot.getEnderChest().length != current.getEnderChest().length) {
+            return false;
+        }
+        
+        for (int i = 0; i < snapshot.getEnderChest().length; i++) {
+            if (!ItemStack.matches(snapshot.getEnderChest()[i], current.getEnderChest()[i])) {
+                return false;
+            }
+        }
+        
         return true;
     }
     
@@ -445,20 +463,20 @@ public class Webshoplink {
             player.getInventory().offhand.set(0, deserializeItemStack(itemData));
         }
         
-        // Apply new enderchest if provided
-        if (newInventory.getEnderChest() != null) {
-            player.getEnderChestInventory().clearContent();
-            for (int i = 0; i < newInventory.getEnderChest().size() && i < player.getEnderChestInventory().getContainerSize(); i++) {
-                ItemStackData itemData = newInventory.getEnderChest().get(i);
-                player.getEnderChestInventory().setItem(i, deserializeItemStack(itemData));
-            }
+        // Apply new enderchest
+        player.getEnderChestInventory().clearContent();
+        for (int i = 0; i < newInventory.getEnderChest().size() && i < player.getEnderChestInventory().getContainerSize(); i++) {
+            ItemStackData itemData = newInventory.getEnderChest().get(i);
+            player.getEnderChestInventory().setItem(i, deserializeItemStack(itemData));
         }
     }
     
-    private InventoryData serializeInventory(Inventory inventory) {
+    private InventoryData serializeInventory(Player player) {
+        Inventory inventory = player.getInventory();
         List<ItemStackData> mainInventory = new ArrayList<>();
         List<ItemStackData> armorInventory = new ArrayList<>();
         List<ItemStackData> offhandInventory = new ArrayList<>();
+        List<ItemStackData> enderChest = new ArrayList<>();
         
         // Serialize main inventory
         for (int i = 0; i < inventory.items.size(); i++) {
@@ -475,18 +493,12 @@ public class Webshoplink {
             offhandInventory.add(serializeItemStack(inventory.offhand.get(i)));
         }
         
-        return new InventoryData(mainInventory, armorInventory, offhandInventory, null);
-    }
-    
-    private List<ItemStackData> serializeEnderChest(Player player) {
-        List<ItemStackData> enderChest = new ArrayList<>();
-        
         // Serialize enderchest
         for (int i = 0; i < player.getEnderChestInventory().getContainerSize(); i++) {
             enderChest.add(serializeItemStack(player.getEnderChestInventory().getItem(i)));
         }
         
-        return enderChest;
+        return new InventoryData(mainInventory, armorInventory, offhandInventory, enderChest);
     }
     
     private ItemStackData serializeItemStack(ItemStack stack) {
@@ -674,6 +686,23 @@ public class Webshoplink {
             diff.append("No changes");
         }
         
+        // Add enderchest changes information
+        diff.append("\n\nEnder Chest: ");
+        boolean hasEnderChestChanges = false;
+        
+        for (int i = 0; i < original.getEnderChest().length && i < newInventory.getEnderChest().size(); i++) {
+            if (!compareItemStacks(original.getEnderChest()[i], newInventory.getEnderChest().get(i))) {
+                hasEnderChestChanges = true;
+                break;
+            }
+        }
+        
+        if (hasEnderChestChanges) {
+            diff.append("Changes detected");
+        } else {
+            diff.append("No changes");
+        }
+        
         return diff.toString();
     }
     
@@ -786,7 +815,6 @@ public class Webshoplink {
         private String webLink;
         private String twoFactorCode;
         private InventoryData newInventory;
-        private List<ItemStackData> newEnderChest;
         
         public ShopProcess(UUID playerId, UUID processId, InventorySnapshot originalInventory) {
             this.playerId = playerId;
@@ -829,14 +857,6 @@ public class Webshoplink {
         public void setNewInventory(InventoryData newInventory) {
             this.newInventory = newInventory;
         }
-        
-        public List<ItemStackData> getNewEnderChest() {
-            return newEnderChest;
-        }
-        
-        public void setNewEnderChest(List<ItemStackData> newEnderChest) {
-            this.newEnderChest = newEnderChest;
-        }
     }
     
     public static class ShopResponse {
@@ -859,14 +879,9 @@ public class Webshoplink {
     
     public static class ShopFinishResponse {
         private InventoryData inventory;
-        private List<ItemStackData> enderChest;
         
         public InventoryData getInventory() {
             return inventory;
-        }
-        
-        public List<ItemStackData> getEnderChest() {
-            return enderChest;
         }
     }
 }
