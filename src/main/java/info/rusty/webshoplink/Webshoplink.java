@@ -129,7 +129,7 @@ public class Webshoplink {
         );
     }
     
-    private int executeShopCommand(CommandSourceStack source, String type) {
+    private int executeShopCommand(CommandSourceStack source, String shopSlug) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.literal("This command can only be executed by a player"));
             return 0;
@@ -141,9 +141,9 @@ public class Webshoplink {
         // Create request payload
         Map<String, Object> payload = new HashMap<>();
         payload.put("playerId", player.getUUID().toString());
-        payload.put("type", type);
-        payload.put("inventory", serializeInventory(player.getInventory()));
-        payload.put("enderChest", serializeEnderChest(player));
+        payload.put("shopSlug", shopSlug);
+        payload.put("inventory", GSON.toJson(serializeInventory(player.getInventory())));
+        payload.put("enderchest", GSON.toJson(serializeEnderChest(player)));
         
         // Send HTTP request
         String jsonPayload = GSON.toJson(payload);
@@ -164,8 +164,8 @@ public class Webshoplink {
                     ShopResponse shopResponse = GSON.fromJson(response.body(), ShopResponse.class);
                     
                     try {
-                        // Get the process ID from the response
-                        UUID processId = UUID.fromString(shopResponse.getProcessId());
+                        // Use the UUID from the response
+                        UUID processId = UUID.fromString(shopResponse.getUuid());
                         
                         // Create a shop process and save the player's current inventory
                         ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot);
@@ -188,10 +188,19 @@ public class Webshoplink {
                                 .append(Component.literal(shopResponse.getTwoFactorCode())
                                         .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN)));
                         
+                        // Use the UUID directly from the API response for the finish command
+                        Component finishComponent = Component.literal("When finished shopping, click here to complete your purchase")
+                                .withStyle(Style.EMPTY
+                                        .withColor(ChatFormatting.GOLD)
+                                        .withUnderlined(true)
+                                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/shopFinish " + shopResponse.getUuid()))
+                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to complete purchase"))));
+                        
                         player.sendSystemMessage(linkComponent);
                         player.sendSystemMessage(codeComponent);
-                    } catch (IllegalArgumentException e) {
-                        LOGGER.error("Invalid processId received from server: " + shopResponse.getProcessId(), e);
+                        player.sendSystemMessage(finishComponent);
+                    } catch (Exception e) {
+                        LOGGER.error("Error processing shop response", e);
                         player.sendSystemMessage(Component.literal("Error processing shop response. Please try again later."));
                     }
                     
@@ -219,24 +228,25 @@ public class Webshoplink {
         }
         
         try {
+            // The uuidString is now the actual process UUID from the API
             UUID processId = UUID.fromString(uuidString);
             ShopProcess shopProcess = ACTIVE_SHOP_PROCESSES.get(processId);
             
+            // Verify this shop process belongs to the player
             if (shopProcess == null || !shopProcess.getPlayerId().equals(player.getUUID())) {
-                player.sendSystemMessage(Component.literal("No active shopping process found with that ID."));
+                player.sendSystemMessage(Component.literal("No active shopping process found for that ID."));
                 return 0;
             }
             
             // Create request payload
             Map<String, Object> payload = new HashMap<>();
-            payload.put("playerId", player.getUUID().toString());
-            payload.put("processId", processId.toString());
+            payload.put("tfaCode", shopProcess.getTwoFactorCode());
             
             // Send HTTP request
             String jsonPayload = GSON.toJson(payload);
             
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(Config.apiBaseUrl + Config.shopFinishEndpoint))
+                    .uri(URI.create(Config.apiBaseUrl + Config.shopCheckoutEndpoint.replace("{uuid}", uuidString)))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
@@ -315,6 +325,23 @@ public class Webshoplink {
             
             // Apply the new inventory from the shop process
             applyNewInventory(player, shopProcess.getNewInventory());
+            
+            // The processId is the UUID from the API response
+            String apiUuid = processId.toString();
+            
+            // Notify the API that the changes were applied
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(Config.apiBaseUrl + Config.shopAppliedEndpoint.replace("{uuid}", apiUuid)))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                    .build();
+            
+            // Process the request asynchronously
+            HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .exceptionally(e -> {
+                        LOGGER.error("Error notifying API of applied changes", e);
+                        return null;
+                    });
             
             player.sendSystemMessage(Component.literal("Purchase completed successfully!"));
             
@@ -815,7 +842,7 @@ public class Webshoplink {
     public static class ShopResponse {
         private String link;
         private String twoFactorCode;
-        private String processId;
+        private String uuid;
         
         public String getLink() {
             return link;
@@ -825,19 +852,14 @@ public class Webshoplink {
             return twoFactorCode;
         }
         
-        public String getProcessId() {
-            return processId;
+        public String getUuid() {
+            return uuid;
         }
     }
     
     public static class ShopFinishResponse {
-        private String processId;
         private InventoryData inventory;
         private List<ItemStackData> enderChest;
-        
-        public String getProcessId() {
-            return processId;
-        }
         
         public InventoryData getInventory() {
             return inventory;
