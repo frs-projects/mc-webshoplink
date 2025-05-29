@@ -551,7 +551,7 @@ public class Webshoplink {
         }
         
         net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                .getValue(new ResourceLocation(data.getItemId()));
+                .getValue(ResourceLocation.tryParse(data.getItemId()));
         
         if (item == null) {
             LOGGER.warn("Unknown item ID: " + data.getItemId());
