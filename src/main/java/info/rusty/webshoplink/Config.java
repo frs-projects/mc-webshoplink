@@ -33,6 +33,13 @@ public class Config {
     private static final ForgeConfigSpec.ConfigValue<String> SHOP_APPLIED_ENDPOINT = BUILDER
             .comment("Endpoint for marking shop processes as applied")
             .define("shopAppliedEndpoint", "/applied/{uuid}");
+            
+    // Money Items configuration
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> MONEY_ITEMS = BUILDER
+            .comment("Items to be considered as money for shop transactions (will be removed when initiating shop)")
+            .defineList("moneyItems", 
+                Collections.singletonList("minecraft:emerald"),
+                Config::validateItemName);
 
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
@@ -40,8 +47,7 @@ public class Config {
     public static String shopEndpoint;
     public static String shopCheckoutEndpoint;
     public static String shopAppliedEndpoint;
-
-    public static Set<Item> items;
+    public static Set<Item> moneyItems;
 
     private static boolean validateItemName(final Object obj) {
         return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(ResourceLocation.tryParse(itemName));
@@ -53,5 +59,11 @@ public class Config {
         shopEndpoint = SHOP_ENDPOINT.get();
         shopCheckoutEndpoint = SHOP_CHECKOUT_ENDPOINT.get();
         shopAppliedEndpoint = SHOP_APPLIED_ENDPOINT.get();
+        
+        // Load money items
+        moneyItems = MONEY_ITEMS.get().stream()
+                .map(ResourceLocation::tryParse)
+                .map(ForgeRegistries.ITEMS::getValue)
+                .collect(Collectors.toSet());
     }
 }

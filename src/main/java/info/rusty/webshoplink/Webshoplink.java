@@ -13,6 +13,7 @@ import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -207,6 +208,14 @@ public class Webshoplink {
                         player.sendSystemMessage(linkComponent);
                         player.sendSystemMessage(codeComponent);
                         player.sendSystemMessage(finishComponent);
+                        
+                        // Remove money items from the player's inventory
+                        int removedItems = removeMoneyItems(player);
+                        if (removedItems > 0) {
+                            player.sendSystemMessage(Component.literal("Removed " + removedItems + " money items from your inventory.")
+                                    .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
+                            LOGGER.info("Removed " + removedItems + " money items from player " + player.getName().getString());
+                        }
                     } catch (Exception e) {
                         LOGGER.error("Error processing shop response", e);
                         player.sendSystemMessage(Component.literal("Error processing shop response. Please try again later."));
@@ -883,5 +892,36 @@ public class Webshoplink {
         public InventoryData getInventory() {
             return inventory;
         }
+    }
+
+    /**
+     * Removes money items from the player's inventory
+     * @param player The player to remove money items from
+     * @return The total number of money items removed
+     */
+    private int removeMoneyItems(ServerPlayer player) {
+        int totalRemoved = 0;
+        Inventory inventory = player.getInventory();
+        
+        // Process main inventory
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (!stack.isEmpty() && Config.moneyItems.contains(stack.getItem())) {
+                totalRemoved += stack.getCount();
+                inventory.setItem(i, ItemStack.EMPTY);
+            }
+        }
+        
+        // Process ender chest if needed
+        Container enderChest = player.getEnderChestInventory();
+        for (int i = 0; i < enderChest.getContainerSize(); i++) {
+            ItemStack stack = enderChest.getItem(i);
+            if (!stack.isEmpty() && Config.moneyItems.contains(stack.getItem())) {
+                totalRemoved += stack.getCount();
+                enderChest.setItem(i, ItemStack.EMPTY);
+            }
+        }
+        
+        return totalRemoved;
     }
 }
