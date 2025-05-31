@@ -193,10 +193,6 @@ public class Webshoplink {
                                                 .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, shopResponse.getLink()))
                                                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to open shop")))));
                         
-                        Component codeComponent = Component.literal("Use this Code to verify your identity: ")
-                                .append(Component.literal(shopResponse.getTwoFactorCode())
-                                        .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN)));
-                        
                         // Use the UUID directly from the API response for the finish command
                         Component finishComponent = Component.literal("When finished shopping, click here to complete your purchase")
                                 .withStyle(Style.EMPTY
@@ -206,7 +202,6 @@ public class Webshoplink {
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to complete purchase"))));
                         
                         player.sendSystemMessage(linkComponent);
-                        player.sendSystemMessage(codeComponent);
                         player.sendSystemMessage(finishComponent);
                         
                         // Remove money items from the player's inventory
@@ -274,14 +269,25 @@ public class Webshoplink {
             futureResponse.thenAccept(response -> {
                 if (response.statusCode() == 200) {
                     try {
+                        LOGGER.info("Received shop finish response: " + response.body());
+                        
                         // Parse the response
                         ShopFinishResponse finishResponse = GSON.fromJson(response.body(), ShopFinishResponse.class);
                         
+                        // Get the inventory data from the new response format
+                        InventoryData inventoryData = finishResponse.getInventoryData();
+                        
+                        if (inventoryData == null) {
+                            LOGGER.error("Failed to parse inventory data from response");
+                            player.sendSystemMessage(Component.literal("Error processing shop finish response. Please try again later."));
+                            return;
+                        }
+                        
                         // Store the new inventory in the shop process
-                        shopProcess.setNewInventory(finishResponse.getInventory());
+                        shopProcess.setNewInventory(inventoryData);
                         
                         // Generate and show a diff to the player
-                        String diff = generateInventoryDiff(shopProcess.getOriginalInventory(), finishResponse.getInventory());
+                        String diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData);
                         
                         // Create the confirmation message with a clickable button
                         Component confirmComponent = Component.literal("Your shopping cart contains the following changes:\n")
@@ -887,10 +893,48 @@ public class Webshoplink {
     }
     
     public static class ShopFinishResponse {
-        private InventoryData inventory;
+        private Map<String, Object> inventories;
         
-        public InventoryData getInventory() {
-            return inventory;
+        public Map<String, Object> getInventories() {
+            return inventories;
+        }
+        
+        public InventoryData getInventoryData() {
+            if (inventories == null) {
+                return null;
+            }
+            
+            try {
+                @SuppressWarnings("unchecked")
+                List<ItemStackData> mainInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("mainInventory"));
+                @SuppressWarnings("unchecked")
+                List<ItemStackData> armorInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("armorInventory"));
+                @SuppressWarnings("unchecked")
+                List<ItemStackData> offhandInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("offhandInventory"));
+                @SuppressWarnings("unchecked")
+                List<ItemStackData> enderChestInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("enderChestInventory"));
+                
+                return new InventoryData(mainInventory, armorInventory, offhandInventory, enderChestInventory);
+            } catch (Exception e) {
+                LOGGER.error("Error parsing inventory data from response", e);
+                return null;
+            }
+        }
+        
+        private List<ItemStackData> convertToItemStackDataList(List<Map<String, Object>> items) {
+            if (items == null) {
+                return new ArrayList<>();
+            }
+            
+            List<ItemStackData> result = new ArrayList<>();
+            for (Map<String, Object> item : items) {
+                String itemId = (String) item.get("itemId");
+                int count = ((Number) item.get("count")).intValue();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> nbt = (Map<String, Object>) item.get("nbt");
+                result.add(new ItemStackData(itemId, count, nbt));
+            }
+            return result;
         }
     }
 
