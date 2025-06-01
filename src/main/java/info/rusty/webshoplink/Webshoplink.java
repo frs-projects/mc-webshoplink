@@ -26,13 +26,11 @@ import info.rusty.webshoplink.DataTypes.ShopResponse;
 import info.rusty.webshoplink.DataTypes.ShopFinishResponse;
 
 @Mod(Webshoplink.MODID)
-public class Webshoplink {
-
-    public static final String MODID = "webshoplink";
+public class Webshoplink {    public static final String MODID = "webshoplink";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public Webshoplink() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        IEventBus modEventBus = FMLJavaModLoadingContext.getModEventBus();
 
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
@@ -41,10 +39,8 @@ public class Webshoplink {
         MinecraftForge.EVENT_BUS.register(this);
 
         // Register our mod's ForgeConfigSpec so that Forge can create and load the config file for us
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
-    }
-
-    private void commonSetup(final FMLCommonSetupEvent event) {
+        ModLoadingContext.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+    }    private void commonSetup(final FMLCommonSetupEvent event) {
         LOGGER.info("Webshoplink mod initialized");
     }
 
