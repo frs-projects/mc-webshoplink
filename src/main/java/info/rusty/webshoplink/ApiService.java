@@ -110,7 +110,9 @@ public class ApiService {
                     DebugLogger.logError("Exception during checkout API call", ex);
                     throw new RuntimeException("API communication error", ex);
                 });
-    }    /**
+    }
+    
+    /**
      * Notifies the API that changes were applied
      */
     public static CompletableFuture<Void> notifyChangesApplied(UUID processId) {
