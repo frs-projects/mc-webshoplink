@@ -1,0 +1,307 @@
+package info.rusty.webshoplink;
+
+import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import org.slf4j.Logger;
+import com.mojang.logging.LogUtils;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static info.rusty.webshoplink.DataTypes.*;
+import static info.rusty.webshoplink.InventoryManager.*;
+import static info.rusty.webshoplink.UIUtils.*;
+
+/**
+ * Handles command registration and execution
+ */
+public class ShopCommands {
+    private static final Logger LOGGER = LogUtils.getLogger();
+    
+    // Store active shopping processes - Map<UUID, ShopProcess>
+    private static final Map<UUID, ShopProcess> ACTIVE_SHOP_PROCESSES = new ConcurrentHashMap<>();
+    
+    @SubscribeEvent
+    public static void registerCommands(RegisterCommandsEvent event) {
+        LOGGER.info("Registering shop commands");
+        
+        // Register "shop" command with optional label parameter
+        event.getDispatcher().register(
+            Commands.literal("shop")
+                .requires(source -> source.hasPermission(0)) // Anyone can use
+                .then(Commands.argument("type", StringArgumentType.string())
+                    .executes(context -> {
+                        return executeShopCommand(context.getSource(), 
+                            StringArgumentType.getString(context, "type"), "Trader");
+                    })
+                    .then(Commands.argument("label", StringArgumentType.greedyString())
+                        .executes(context -> {
+                            return executeShopCommand(context.getSource(), 
+                                StringArgumentType.getString(context, "type"),
+                                StringArgumentType.getString(context, "label"));
+                        })
+                    )
+                )
+        );
+        
+        // Register "shopFinish" command
+        event.getDispatcher().register(
+            Commands.literal("shopFinish")
+                .requires(source -> source.hasPermission(0)) // Anyone can use
+                .then(Commands.argument("uuid", StringArgumentType.string())
+                    .executes(context -> {
+                        return executeShopFinishCommand(context.getSource(), 
+                            StringArgumentType.getString(context, "uuid"));
+                    })
+                )
+        );
+        
+        // Register "confirmFinish" command
+        event.getDispatcher().register(
+            Commands.literal("confirmFinish")
+                .requires(source -> source.hasPermission(0)) // Anyone can use
+                .then(Commands.argument("uuid", StringArgumentType.string())
+                    .executes(context -> {
+                        return executeConfirmFinishCommand(context.getSource(), 
+                            StringArgumentType.getString(context, "uuid"));
+                    })
+                )
+        );
+    }
+      private static int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("This command can only be executed by a player"));
+            return 0;
+        }
+        
+        // Capture the player's current inventory for later verification
+        InventorySnapshot inventorySnapshot = captureInventory(player);
+        
+        // Serialize the inventory for API communication
+        InventoryData inventoryData = serializeInventory(player);
+        
+        // Send API request to initiate shop process
+        ApiService.initiateShop(player.getUUID(), shopSlug, inventoryData)
+            .thenAccept(shopResponse -> {
+                try {
+                    // Use the UUID from the response
+                    UUID processId = UUID.fromString(shopResponse.getUuid());
+                    
+                    // Create a shop process and save the player's current inventory
+                    ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot, shopLabel);
+                    ACTIVE_SHOP_PROCESSES.put(processId, shopProcess);
+                    
+                    // Store the response data in the shop process
+                    shopProcess.setWebLink(shopResponse.getLink());
+                    shopProcess.setTwoFactorCode(shopResponse.getTwoFactorCode());
+                    
+                    // Create formatted header with the shop label
+                    Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Trader", true);
+                    Component footerComponent = createShopBorder("", false);
+                    Component spacerComponent = Component.literal("");
+                    
+                    // Step 1: Open Shop link
+                    Component openShopComponent = Component.literal("1. ")
+                            .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
+                            .append(Component.literal(">>>> Open Shop <<<<")
+                                    .withStyle(Style.EMPTY
+                                            .withColor(ChatFormatting.BLUE)
+                                            .withUnderlined(true)
+                                            .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, shopResponse.getLink()))
+                                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Open the shop in your browser")))));
+                                            
+                    // Step 2: Instructions
+                    Component instructionsComponent = Component.literal("2. Make your Purchases in the Browser")
+                            .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE));
+                    
+                    // Step 3: Finish Trade
+                    Component finishComponent = Component.literal("3. ")
+                            .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
+                            .append(Component.literal(">>>> Finish Trade <<<<")
+                                    .withStyle(Style.EMPTY
+                                            .withColor(ChatFormatting.GOLD)
+                                            .withUnderlined(true)
+                                            .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/shopFinish " + shopResponse.getUuid()))
+                                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to complete purchase")))));
+                    
+                    // Send the complete shop UI to the player
+                    player.sendSystemMessage(spacerComponent);
+                    player.sendSystemMessage(headerComponent);
+                    player.sendSystemMessage(openShopComponent);
+                    player.sendSystemMessage(instructionsComponent);
+                    player.sendSystemMessage(finishComponent);
+                    player.sendSystemMessage(footerComponent);
+                    player.sendSystemMessage(spacerComponent);
+                    
+                    // Remove money items from the player's inventory
+                    int removedItems = removeMoneyItems(player);
+                    if (removedItems > 0) {
+                        player.sendSystemMessage(Component.literal("Removed " + removedItems + " money items from your inventory.")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
+                        LOGGER.info("Removed " + removedItems + " money items from player " + player.getName().getString());
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Error processing shop response", e);
+                    player.sendSystemMessage(Component.literal("Error processing shop response. Please try again later."));
+                }
+            })
+            .exceptionally(e -> {
+                LOGGER.error("Error connecting to shop API", e);
+                player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
+                return null;
+            });
+        
+        return 1;
+    }
+      private static int executeShopFinishCommand(CommandSourceStack source, String uuidString) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("This command can only be executed by a player"));
+            return 0;
+        }
+        
+        try {
+            // The uuidString is now the actual process UUID from the API
+            UUID processId = UUID.fromString(uuidString);
+            ShopProcess shopProcess = ACTIVE_SHOP_PROCESSES.get(processId);
+            
+            // Verify this shop process belongs to the player
+            if (shopProcess == null || !shopProcess.getPlayerId().equals(player.getUUID())) {
+                player.sendSystemMessage(Component.literal("No active shopping process found for that ID."));
+                return 0;
+            }
+            
+            // Make the API call to finish the shop process
+            ApiService.finishShop(processId, shopProcess.getTwoFactorCode())
+                .thenAccept(finishResponse -> {
+                    try {
+                        // Get the inventory data from the response
+                        InventoryData inventoryData = finishResponse.getInventoryData();
+                        
+                        if (inventoryData == null) {
+                            LOGGER.error("Failed to parse inventory data from response");
+                            player.sendSystemMessage(Component.literal("Error processing shop finish response. Please try again later."));
+                            return;
+                        }
+                        
+                        // Store the new inventory in the shop process
+                        shopProcess.setNewInventory(inventoryData);
+                        
+                        // Generate and show a diff to the player
+                        String diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData);
+                        
+                        // Create the confirmation message with a clickable button
+                        Component spacerComponent = Component.literal("");
+                        Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Cart", true);
+                        Component footerComponent = createShopBorder("", false);
+                        
+                        Component diffComponent = Component.literal("Your shopping cart contains the following changes:\n")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE))
+                                .append(Component.literal(diff).withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+                        
+                        Component confirmComponent = Component.literal(">>>> ")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
+                                .append(Component.literal("Confirm and Apply Changes")
+                                        .withStyle(Style.EMPTY
+                                                .withColor(ChatFormatting.GREEN)
+                                                .withUnderlined(true)
+                                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/confirmFinish " + processId))
+                                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to confirm purchase")))))
+                                .append(Component.literal(" <<<<").withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+                        
+                        player.sendSystemMessage(spacerComponent);
+                        player.sendSystemMessage(headerComponent);
+                        player.sendSystemMessage(diffComponent);
+                        player.sendSystemMessage(confirmComponent);
+                        player.sendSystemMessage(footerComponent);
+                        player.sendSystemMessage(spacerComponent);
+                        
+                    } catch (Exception e) {
+                        LOGGER.error("Error processing shop finish response", e);
+                        player.sendSystemMessage(Component.literal("Error processing shop finish response. Please try again later."));
+                    }
+                })
+                .exceptionally(e -> {
+                    LOGGER.error("Error connecting to shop finish API", e);
+                    player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
+                    return null;
+                });
+            
+        } catch (IllegalArgumentException e) {
+            player.sendSystemMessage(Component.literal("Invalid UUID format. Please use the UUID provided in the shop link."));
+            return 0;
+        }
+        
+        return 1;
+    }
+      private static int executeConfirmFinishCommand(CommandSourceStack source, String uuidString) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("This command can only be executed by a player"));
+            return 0;
+        }
+        
+        try {
+            UUID processId = UUID.fromString(uuidString);
+            ShopProcess shopProcess = ACTIVE_SHOP_PROCESSES.get(processId);
+            
+            if (shopProcess == null || !shopProcess.getPlayerId().equals(player.getUUID())) {
+                player.sendSystemMessage(Component.literal("No active shopping process found with that ID."));
+                return 0;
+            }
+            
+            // Check if the player's inventory has changed since the shop process started
+            if (!inventoriesMatch(shopProcess.getOriginalInventory(), captureInventory(player))) {
+                player.sendSystemMessage(Component.literal("Your inventory has changed since starting the shop process. Purchase cancelled."));
+                ACTIVE_SHOP_PROCESSES.remove(processId);
+                return 0;
+            }
+            
+            // Apply the new inventory from the shop process
+            applyNewInventory(player, shopProcess.getNewInventory());
+            
+            // Notify the API that the changes were applied
+            ApiService.notifyChangesApplied(processId)
+                .exceptionally(e -> {
+                    LOGGER.error("Error notifying API of applied changes", e);
+                    return null;
+                });
+            
+            Component spacerComponent = Component.literal("");
+            Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Trader", true);
+            Component successComponent = Component.literal("Purchase completed successfully!")
+                    .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
+            Component footerComponent = createShopBorder("", false);
+            
+            player.sendSystemMessage(spacerComponent);
+            player.sendSystemMessage(headerComponent);
+            player.sendSystemMessage(successComponent);
+            player.sendSystemMessage(footerComponent);
+            player.sendSystemMessage(spacerComponent);
+            
+            // Remove the completed shop process
+            ACTIVE_SHOP_PROCESSES.remove(processId);
+            
+        } catch (IllegalArgumentException e) {
+            player.sendSystemMessage(Component.literal("Invalid UUID format. Please use the UUID provided in the shop link."));
+            return 0;
+        }
+        
+        return 1;
+    }
+    
+    /**
+     * Get the active shop processes map
+     */
+    public static Map<UUID, ShopProcess> getActiveShopProcesses() {
+        return ACTIVE_SHOP_PROCESSES;
+    }
+}
