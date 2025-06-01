@@ -40,6 +40,15 @@ public class Config {
             .defineList("moneyItems", 
                 Collections.singletonList("minecraft:emerald"),
                 Config::validateItemName);
+                
+    // Debug configuration
+    private static final ForgeConfigSpec.BooleanValue DEBUG_ENABLED = BUILDER
+            .comment("Enable debug logging")
+            .define("debugEnabled", false);
+            
+    private static final ForgeConfigSpec.EnumValue<DebugVerbosity> DEBUG_VERBOSITY = BUILDER
+            .comment("Debug verbosity level: MINIMAL (basic info), DEFAULT (standard info), ALL (detailed info including inventory contents)")
+            .defineEnum("debugVerbosity", DebugVerbosity.DEFAULT);
 
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
@@ -48,6 +57,17 @@ public class Config {
     public static String shopCheckoutEndpoint;
     public static String shopAppliedEndpoint;
     public static Set<Item> moneyItems;
+    public static boolean debugEnabled;
+    public static DebugVerbosity debugVerbosity;
+    
+    /**
+     * Debug verbosity levels
+     */
+    public enum DebugVerbosity {
+        MINIMAL,  // Basic operation info (started, finished, applied)
+        DEFAULT,  // Standard info (operation details, counts)
+        ALL       // Detailed info (includes full inventory contents)
+    }
 
     private static boolean validateItemName(final Object obj) {
         return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(ResourceLocation.tryParse(itemName));
@@ -65,5 +85,9 @@ public class Config {
                 .map(ResourceLocation::tryParse)
                 .map(ForgeRegistries.ITEMS::getValue)
                 .collect(Collectors.toSet());
+                
+        // Load debug configuration
+        debugEnabled = DEBUG_ENABLED.get();
+        debugVerbosity = DEBUG_VERBOSITY.get();
     }
 }
