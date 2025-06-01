@@ -156,20 +156,18 @@ public class ApiService {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{}"))
                 .build();
-        
-        // Process the request asynchronously, don't wait for response
+          // Process the request asynchronously, don't wait for response
         return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
+                .thenAccept(response -> {
                     if (response.statusCode() != 200) {
                         DebugLogger.logError("Error notifying changes applied: " + response.statusCode() + " - " + response.body(), null);
                     } else {
                         DebugLogger.log("Successfully notified changes applied, response: " + response.body(), Config.DebugVerbosity.DEFAULT);
                     }
-                    return null;
                 })
                 .exceptionally(ex -> {
                     DebugLogger.logError("Exception during notification API call", ex);
-                    return null; // We don't want to fail the whole process if notification fails
+                    return null; // With thenAccept, null is properly typed as Void
                 });
     }
 }
