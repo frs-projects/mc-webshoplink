@@ -222,7 +222,7 @@ public class ShopCommands {
                         
                         // Create the confirmation message with a clickable button
                         Component spacerComponent = Component.literal("");
-                        Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Cart", true);
+                        Component headerComponent = createShopBorder("Cart", true);
                         Component footerComponent = createShopBorder("", false);
                         
                         Component diffIntroComponent = Component.literal("Your shopping cart contains the following changes:\n")
@@ -376,7 +376,7 @@ public class ShopCommands {
                 });
             
             Component spacerComponent = Component.literal("");
-            Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Trader", true);
+            Component headerComponent = createShopBorder(shopProcess.getShopLabel(), true);
             Component successComponent = Component.literal("Purchase completed successfully!")
                     .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
             Component footerComponent = createShopBorder("", false);
