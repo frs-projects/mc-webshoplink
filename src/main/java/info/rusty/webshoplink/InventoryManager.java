@@ -11,6 +11,7 @@ import com.mojang.logging.LogUtils;
 import info.rusty.webshoplink.DataTypes.InventorySnapshot;
 import info.rusty.webshoplink.DataTypes.InventoryData;
 import info.rusty.webshoplink.DataTypes.ItemStackData;
+import info.rusty.webshoplink.NbtUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -180,57 +181,30 @@ public class InventoryManager {
         }
         
         String itemId = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem()).toString();
-        int count = stack.getCount();
-        Map<String, Object> nbt = null;
+        int count = stack.getCount();        Map<String, Object> nbt = null;
         
         // Serialize NBT data if present
         if (stack.hasTag()) {
-            // Convert NBT to a map representation
-            nbt = new HashMap<>();
+            // Convert NBT to JSON using our NbtUtils
+            String json = NbtUtils.minecraftNbtToJson(stack.getTag());
             
-            // Convert CompoundTag to a serializable map format
-            convertNbtToMap(stack.getTag(), nbt);
+            // Store it as a map entry so it serializes properly
+            nbt = new HashMap<>();
+            nbt.put("nbtJson", json);
         }
         
         return new ItemStackData(itemId, count, nbt);
-    }
-
-    /**
+    }    /**
      * Converts an NBT CompoundTag to a Map for serialization
+     * This is a legacy method, use NbtUtils.minecraftNbtToJson() for new code
      */
     public static void convertNbtToMap(net.minecraft.nbt.CompoundTag tag, Map<String, Object> map) {
-        for (String key : tag.getAllKeys()) {
-            net.minecraft.nbt.Tag nbtElement = tag.get(key);
-            if (nbtElement == null) continue;
-            
-            switch (nbtElement.getId()) {
-                case net.minecraft.nbt.Tag.TAG_COMPOUND:
-                    Map<String, Object> nestedMap = new HashMap<>();
-                    convertNbtToMap((net.minecraft.nbt.CompoundTag) nbtElement, nestedMap);
-                    map.put(key, nestedMap);
-                    break;
-                case net.minecraft.nbt.Tag.TAG_LIST:
-                    net.minecraft.nbt.ListTag listTag = (net.minecraft.nbt.ListTag) nbtElement;
-                    List<Object> list = new ArrayList<>();
-                    for (int i = 0; i < listTag.size(); i++) {
-                        if (listTag.getElementType() == net.minecraft.nbt.Tag.TAG_COMPOUND) {
-                            Map<String, Object> listItemMap = new HashMap<>();
-                            convertNbtToMap(listTag.getCompound(i), listItemMap);
-                            list.add(listItemMap);
-                        } else {
-                            // For primitive types in a list, add their string representation
-                            list.add(listTag.get(i).toString());
-                        }
-                    }
-                    map.put(key, list);
-                    break;
-                default:
-                    // For primitive types (byte, short, int, long, float, double, string, etc.)
-                    // We store their string representation
-                    map.put(key, nbtElement.toString());
-                    break;
-            }
-        }
+        // Use the NbtUtils class to convert to JSON and back to a map
+        // This is simpler than manually traversing the NBT structure
+        String json = NbtUtils.minecraftNbtToJson(tag);
+        
+        // Store the full JSON representation - simpler approach
+        map.put("nbtJson", json);
     }
 
     /**
@@ -248,23 +222,41 @@ public class InventoryManager {
             LOGGER.warn("Unknown item ID: " + data.getItemId());
             return ItemStack.EMPTY;
         }
-        
-        ItemStack stack = new ItemStack(item, data.getCount());
+          ItemStack stack = new ItemStack(item, data.getCount());
         
         // Handle NBT data if present
         if (data.getNbt() != null && !data.getNbt().isEmpty()) {
-            net.minecraft.nbt.CompoundTag nbtTag = new net.minecraft.nbt.CompoundTag();
-            convertMapToNbt(data.getNbt(), nbtTag);
-            stack.setTag(nbtTag);
+            if (data.getNbt().containsKey("nbtJson")) {
+                String json = (String) data.getNbt().get("nbtJson");
+                net.minecraft.nbt.CompoundTag nbtTag = NbtUtils.jsonToMinecraftNbt(json);
+                stack.setTag(nbtTag);
+            } else {
+                // Legacy fallback for old data format
+                net.minecraft.nbt.CompoundTag nbtTag = new net.minecraft.nbt.CompoundTag();
+                convertMapToNbt(data.getNbt(), nbtTag);
+                stack.setTag(nbtTag);
+            }
         }
         
         return stack;
-    }
-
-    /**
+    }    /**
      * Converts a Map back to an NBT CompoundTag
+     * This is a legacy method, use NbtUtils.jsonToMinecraftNbt() for new code
      */
     public static void convertMapToNbt(Map<String, Object> map, net.minecraft.nbt.CompoundTag compoundTag) {
+        // Check if we have the simplified JSON representation
+        if (map.containsKey("nbtJson")) {
+            String json = (String) map.get("nbtJson");
+            net.minecraft.nbt.CompoundTag jsonTag = NbtUtils.jsonToMinecraftNbt(json);
+            
+            // Copy all values to the provided tag
+            for (String key : jsonTag.getAllKeys()) {
+                compoundTag.put(key, jsonTag.get(key));
+            }
+            return;
+        }
+        
+        // Legacy fallback for old format data
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
