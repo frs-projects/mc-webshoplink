@@ -208,8 +208,9 @@ public class ShopCommands {
                         shopProcess.setNewInventory(inventoryData);
                         shopProcess.setNewEchest(echestData);
                         DebugLogger.log("Successfully stored new inventory for player " + player.getName().getString() + ", process: " + processId);
-                          // Generate and show a diff to the player
-                        InventoryDiff diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData);
+                        
+                        // Generate and show a diff to the player
+                        InventoryDiff diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData, echestData);
                         
                         // Create the confirmation message with a clickable button
                         Component spacerComponent = Component.literal("");
@@ -229,7 +230,7 @@ public class ShopCommands {
                             player.sendSystemMessage(removedHeaderComponent);
                             
                             for (InventoryChange change : diff.getRemoved()) {
-                                Component itemComponent = Component.literal("- " + change.getCount() + " x " + change.getFormattedName())
+                                Component itemComponent = Component.literal("- " + change.getCount() + "x " + change.getFormattedName())
                                         .withStyle(Style.EMPTY.withColor(ChatFormatting.RED));
                                 player.sendSystemMessage(itemComponent);
                             }
@@ -248,9 +249,8 @@ public class ShopCommands {
                             }
                             
                             player.sendSystemMessage(addedHeaderComponent);
-                            
-                            for (InventoryChange change : diff.getAdded()) {
-                                Component itemComponent = Component.literal("+ " + change.getCount() + " x " + change.getFormattedName())
+                              for (InventoryChange change : diff.getAdded()) {
+                                Component itemComponent = Component.literal("+ " + change.getCount() + "x " + change.getFormattedName())
                                         .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
                                 player.sendSystemMessage(itemComponent);
                             }
@@ -325,17 +325,45 @@ public class ShopCommands {
                 ACTIVE_SHOP_PROCESSES.remove(processId);
                 return 0;
             }
-            
-            // Apply the new inventory from the shop process
-            applyNewInventory(player, shopProcess.getNewInventory());
-            applyNewEchest(player, shopProcess.getNewEchest());
-            DebugLogger.log("Applied inventory changes to player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
-            DebugLogger.log("Applied inventory changes from session " + processId + " to player " + player.getName().getString());
-            
-            // Notify the API that the changes were applied
-            ApiService.notifyChangesApplied(processId)
+              // First notify the API that the changes will be applied and wait for confirmation
+            ApiService.notifyChangesApplied(processId, shopProcess.getTwoFactorCode())
+                .thenAccept(success -> {
+                    if (success) {
+                        // Only apply the inventory changes if the API confirms the transaction
+                        applyNewInventory(player, shopProcess.getNewInventory());
+                        applyNewEchest(player, shopProcess.getNewEchest());
+                        DebugLogger.log("Applied inventory changes to player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+                        DebugLogger.log("Applied inventory changes from session " + processId + " to player " + player.getName().getString());
+
+                        // Only show success message after API confirmation and inventory update
+                        Component spacerComponent = Component.literal("");
+                        Component headerComponent = createShopBorder(shopProcess.getShopLabel(), true);
+                        Component successComponent = Component.literal("Purchase completed successfully!")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
+                        Component footerComponent = createShopBorder("", false);
+                        
+                        player.sendSystemMessage(spacerComponent);
+                        player.sendSystemMessage(headerComponent);
+                        player.sendSystemMessage(successComponent);
+                        player.sendSystemMessage(footerComponent);
+                        player.sendSystemMessage(spacerComponent);
+                        
+                        // Log completion
+                        DebugLogger.log("Purchase completed successfully for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.MINIMAL);
+                        
+                        // Remove the completed shop process
+                        ACTIVE_SHOP_PROCESSES.remove(processId);
+                    } else {
+                        // If API verification fails, inform the player
+                        player.sendSystemMessage(Component.literal("Purchase verification failed. Please try again later.")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+                        DebugLogger.logError("API verification failed for process: " + processId, null);
+                    }
+                })
                 .exceptionally(e -> {
                     DebugLogger.logError("Error notifying API of applied changes", e);
+                    player.sendSystemMessage(Component.literal("Error completing purchase. Please try again later.")
+                            .withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
                     return null;
                 });
             
@@ -350,12 +378,8 @@ public class ShopCommands {
             player.sendSystemMessage(successComponent);
             player.sendSystemMessage(footerComponent);
             player.sendSystemMessage(spacerComponent);
-            
-            // Log completion
-            DebugLogger.log("Purchase completed successfully for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.MINIMAL);
-            
-            // Remove the completed shop process
-            ACTIVE_SHOP_PROCESSES.remove(processId);
+              // Log completion
+            DebugLogger.log("Purchase verification started for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.MINIMAL);
             
         } catch (IllegalArgumentException e) {
             DebugLogger.logError("Invalid UUID format in confirmFinish command: " + uuidString, e);

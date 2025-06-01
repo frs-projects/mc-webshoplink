@@ -390,12 +390,15 @@ public class DataTypes {
          * Helper method to format item IDs for display
          */
         private static String formatItemId(String itemId) {
-            // Convert minecraft:iron_ingot to Iron Ingot
-            if (itemId.contains(":")) {
-                itemId = itemId.substring(itemId.indexOf(":") + 1);
+            // Keep the full itemId like "minecraft:iron_ingot"
+            String displayName = itemId;
+            
+            // Extract just the name part (after the colon)
+            if (displayName.contains(":")) {
+                displayName = displayName.substring(displayName.indexOf(":") + 1);
             }
             
-            String[] parts = itemId.split("_");
+            String[] parts = displayName.split("_");
             StringBuilder formatted = new StringBuilder();
             
             for (String part : parts) {

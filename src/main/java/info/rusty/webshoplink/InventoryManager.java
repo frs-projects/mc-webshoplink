@@ -191,12 +191,17 @@ public class InventoryManager {
                 DebugLogger.log("Cleared ender chest slot " + i, Config.DebugVerbosity.DEFAULT);
             }
         }
-    }
-    
-    /**
+    }    /**
      * Generates a diff between original and new inventory for display to the player
      */
     public static InventoryDiff generateInventoryDiff(InventorySnapshot original, InventoryData newInventory) {
+        return generateInventoryDiff(original, newInventory, null);
+    }
+    
+    /**
+     * Generates a diff between original and new inventory including ender chest for display to the player
+     */
+    public static InventoryDiff generateInventoryDiff(InventorySnapshot original, InventoryData newInventory, ContainerData newEchest) {
         DebugLogger.log("Generating inventory diff", Config.DebugVerbosity.MINIMAL);
         
         InventoryDiff diff = new InventoryDiff();
@@ -230,6 +235,14 @@ public class InventoryManager {
             }
         }
         
+        // Add ender chest items
+        for (ItemStack stack : original.getEnderChest()) {
+            if (!stack.isEmpty()) {
+                String itemKey = getItemKey(stack);
+                originalItemCounts.put(itemKey, originalItemCounts.getOrDefault(itemKey, 0) + stack.getCount());
+            }
+        }
+        
         // Create a map for the new inventory
         java.util.Map<String, Integer> newItemCounts = new java.util.HashMap<>();
         
@@ -245,6 +258,21 @@ public class InventoryManager {
             }
         }
         
+        // Process new ender chest items if provided
+        if (newEchest != null) {
+            Map<Integer, ItemData> newEchestItems = newEchest.getItems();
+            for (int i = 0; i < newEchest.getSize(); i++) {
+                ItemData itemData = newEchestItems.get(i);
+                if (itemData != null) {
+                    String itemKey = itemData.getItemId();
+                    if (itemData.getNbt() != null && !itemData.getNbt().isEmpty()) {
+                        itemKey += ":" + itemData.getNbt();
+                    }
+                    newItemCounts.put(itemKey, newItemCounts.getOrDefault(itemKey, 0) + itemData.getCount());
+                }
+            }
+        }
+          
         // Compare original and new inventories to generate diff
         java.util.Set<String> allItems = new java.util.HashSet<>();
         allItems.addAll(originalItemCounts.keySet());
@@ -254,12 +282,12 @@ public class InventoryManager {
             int originalCount = originalItemCounts.getOrDefault(itemKey, 0);
             int newCount = newItemCounts.getOrDefault(itemKey, 0);
             int diff_count = newCount - originalCount;
-            
-            if (diff_count != 0) {
-                // Extract the item ID (without NBT)
+              if (diff_count != 0) {
+                // Use the full item key for better identification
                 String itemId = itemKey;
-                if (itemKey.contains(":")) {
-                    itemId = itemKey.substring(0, itemKey.indexOf(":"));
+                // Extract just the item ID part without the NBT data for display
+                if (itemKey.contains(":nbt")) {
+                    itemId = itemKey.substring(0, itemKey.indexOf(":nbt"));
                 }
                 
                 if (diff_count > 0) {

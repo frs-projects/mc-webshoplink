@@ -111,34 +111,59 @@ public class ApiService {
                     throw new RuntimeException("API communication error", ex);
                 });
     }
-    
-    /**
+      /**
      * Notifies the API that changes were applied
+     * @param processId The UUID of the shop process
+     * @param twoFactorCode The two-factor authentication code for verification
+     * @return A CompletableFuture that completes when the API confirms the changes were applied
      */
-    public static CompletableFuture<Void> notifyChangesApplied(UUID processId) {
-        DebugLogger.log("Notified server that changes were applied", Config.DebugVerbosity.MINIMAL);
-        DebugLogger.log("Notified server that changes for session " + processId + " were applied", Config.DebugVerbosity.DEFAULT);
+    public static CompletableFuture<Boolean> notifyChangesApplied(UUID processId, String twoFactorCode) {
+        DebugLogger.log("Notifying server that changes were applied", Config.DebugVerbosity.MINIMAL);
+        DebugLogger.log("Notifying server that changes for session " + processId + " were applied with code: " + twoFactorCode, Config.DebugVerbosity.DEFAULT);
+
+        // Create request payload
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("tfaCode", twoFactorCode);
         
+        // Send HTTP request
+        String jsonPayload = GSON.toJson(payload);
         String endpoint = Config.apiBaseUrl + Config.shopAppliedEndpoint.replace("{uuid}", processId.toString());
+        
         DebugLogger.log("Sending notification to: " + endpoint, Config.DebugVerbosity.DEFAULT);
         
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
-          // Process the request asynchronously, don't wait for response
+          // Process the request asynchronously and wait for response to validate
         return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenAccept(response -> {
+                .thenApply(response -> {
                     if (response.statusCode() != 200) {
                         DebugLogger.logError("Error notifying changes applied: " + response.statusCode() + " - " + response.body(), null);
+                        return false;
                     } else {
                         DebugLogger.log("Successfully notified changes applied, response: " + response.body(), Config.DebugVerbosity.DEFAULT);
+                        // Parse the response to verify the expected message
+                        try {
+                            Map<String, String> responseMap = GSON.fromJson(response.body(), Map.class);
+                            String message = responseMap.get("message");
+                            if ("Shop instance marked as applied".equals(message)) {
+                                DebugLogger.log("Server confirmed changes were applied", Config.DebugVerbosity.MINIMAL);
+                                return true;
+                            } else {
+                                DebugLogger.logError("Unexpected response message: " + message, null);
+                                return false;
+                            }
+                        } catch (Exception e) {
+                            DebugLogger.logError("Error parsing response: " + response.body(), e);
+                            return false;
+                        }
                     }
                 })
                 .exceptionally(ex -> {
                     DebugLogger.logError("Exception during notification API call", ex);
-                    return null; // With thenAccept, null is properly typed as Void
+                    return false;
                 });
     }
 }
