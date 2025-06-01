@@ -208,18 +208,62 @@ public class ShopCommands {
                         shopProcess.setNewInventory(inventoryData);
                         shopProcess.setNewEchest(echestData);
                         DebugLogger.log("Successfully stored new inventory for player " + player.getName().getString() + ", process: " + processId);
-                        
-                        // Generate and show a diff to the player
-                        String diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData);
+                          // Generate and show a diff to the player
+                        InventoryDiff diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData);
                         
                         // Create the confirmation message with a clickable button
                         Component spacerComponent = Component.literal("");
                         Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Cart", true);
                         Component footerComponent = createShopBorder("", false);
                         
-                        Component diffComponent = Component.literal("Your shopping cart contains the following changes:\n\n")
-                                .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE))
-                                .append(Component.literal(diff).withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+                        Component diffIntroComponent = Component.literal("Your shopping cart contains the following changes:\n")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE));
+                        
+                        // Display removed items in red
+                        if (!diff.getRemoved().isEmpty()) {
+                            Component removedHeaderComponent = Component.literal("\nRemoved items:")
+                                    .withStyle(Style.EMPTY.withColor(ChatFormatting.RED));
+                            player.sendSystemMessage(spacerComponent);
+                            player.sendSystemMessage(headerComponent);
+                            player.sendSystemMessage(diffIntroComponent);
+                            player.sendSystemMessage(removedHeaderComponent);
+                            
+                            for (InventoryChange change : diff.getRemoved()) {
+                                Component itemComponent = Component.literal("- " + change.getCount() + " x " + change.getFormattedName())
+                                        .withStyle(Style.EMPTY.withColor(ChatFormatting.RED));
+                                player.sendSystemMessage(itemComponent);
+                            }
+                        }
+                        
+                        // Display added items in green
+                        if (!diff.getAdded().isEmpty()) {
+                            Component addedHeaderComponent = Component.literal("\nAdded items:")
+                                    .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
+                            
+                            if (diff.getRemoved().isEmpty()) {
+                                // If there were no removed items, we need to send the header first
+                                player.sendSystemMessage(spacerComponent);
+                                player.sendSystemMessage(headerComponent);
+                                player.sendSystemMessage(diffIntroComponent);
+                            }
+                            
+                            player.sendSystemMessage(addedHeaderComponent);
+                            
+                            for (InventoryChange change : diff.getAdded()) {
+                                Component itemComponent = Component.literal("+ " + change.getCount() + " x " + change.getFormattedName())
+                                        .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
+                                player.sendSystemMessage(itemComponent);
+                            }
+                        }
+                        
+                        // If there are no changes at all
+                        if (diff.isEmpty()) {
+                            player.sendSystemMessage(spacerComponent);
+                            player.sendSystemMessage(headerComponent);
+                            player.sendSystemMessage(diffIntroComponent);
+                            player.sendSystemMessage(Component.literal("No changes to your inventory.")
+                                    .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+                        }
                         
                         Component confirmComponent = Component.literal(">>>> ")
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
@@ -231,9 +275,6 @@ public class ShopCommands {
                                                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to confirm purchase")))))
                                 .append(Component.literal(" <<<<").withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
                         
-                        player.sendSystemMessage(spacerComponent);
-                        player.sendSystemMessage(headerComponent);
-                        player.sendSystemMessage(diffComponent);
                         player.sendSystemMessage(confirmComponent);
                         player.sendSystemMessage(footerComponent);
                         player.sendSystemMessage(spacerComponent);

@@ -322,4 +322,91 @@ public class DataTypes {
             }
         }
     }
+    
+    /**
+     * Represents an inventory diff between two snapshots
+     */
+    public static class InventoryDiff {
+        private final java.util.List<InventoryChange> added;
+        private final java.util.List<InventoryChange> removed;
+        
+        public InventoryDiff() {
+            this.added = new java.util.ArrayList<>();
+            this.removed = new java.util.ArrayList<>();
+        }
+        
+        public java.util.List<InventoryChange> getAdded() {
+            return added;
+        }
+        
+        public java.util.List<InventoryChange> getRemoved() {
+            return removed;
+        }
+        
+        public void addItem(String itemId, int count) {
+            if (count > 0) {
+                added.add(new InventoryChange(itemId, count));
+            }
+        }
+        
+        public void removeItem(String itemId, int count) {
+            if (count > 0) {
+                removed.add(new InventoryChange(itemId, count));
+            }
+        }
+        
+        public boolean isEmpty() {
+            return added.isEmpty() && removed.isEmpty();
+        }
+    }
+    
+    /**
+     * Represents a single change in the inventory
+     */
+    public static class InventoryChange {
+        private final String itemId;
+        private final int count;
+        private final String formattedName;
+        
+        public InventoryChange(String itemId, int count) {
+            this.itemId = itemId;
+            this.count = count;
+            this.formattedName = formatItemId(itemId);
+        }
+        
+        public String getItemId() {
+            return itemId;
+        }
+        
+        public int getCount() {
+            return count;
+        }
+        
+        public String getFormattedName() {
+            return formattedName;
+        }
+        
+        /**
+         * Helper method to format item IDs for display
+         */
+        private static String formatItemId(String itemId) {
+            // Convert minecraft:iron_ingot to Iron Ingot
+            if (itemId.contains(":")) {
+                itemId = itemId.substring(itemId.indexOf(":") + 1);
+            }
+            
+            String[] parts = itemId.split("_");
+            StringBuilder formatted = new StringBuilder();
+            
+            for (String part : parts) {
+                if (!part.isEmpty()) {
+                    formatted.append(Character.toUpperCase(part.charAt(0)));
+                    formatted.append(part.substring(1));
+                    formatted.append(" ");
+                }
+            }
+            
+            return formatted.toString().trim();
+        }
+    }
 }

@@ -196,10 +196,10 @@ public class InventoryManager {
     /**
      * Generates a diff between original and new inventory for display to the player
      */
-    public static String generateInventoryDiff(InventorySnapshot original, InventoryData newInventory) {
+    public static InventoryDiff generateInventoryDiff(InventorySnapshot original, InventoryData newInventory) {
         DebugLogger.log("Generating inventory diff", Config.DebugVerbosity.MINIMAL);
         
-        StringBuilder diff = new StringBuilder();
+        InventoryDiff diff = new InventoryDiff();
         Map<Integer, ItemData> newItems = newInventory.getItems();
         
         // Create a map of items in the original inventory for easy lookup
@@ -263,21 +263,16 @@ public class InventoryManager {
                 }
                 
                 if (diff_count > 0) {
-                    diff.append("+ ").append(diff_count).append("x ").append(formatItemId(itemId)).append("\n");
+                    diff.addItem(itemId, diff_count);
                 } else {
-                    diff.append("- ").append(-diff_count).append("x ").append(formatItemId(itemId)).append("\n");
+                    diff.removeItem(itemId, -diff_count);
                 }
             }
         }
         
-        if (diff.length() == 0) {
-            return "No changes to your inventory.";
-        }
-        
-        return diff.toString();
+        return diff;
     }
-    
-    /**
+      /**
      * Helper method to get a unique key for an item
      */
     private static String getItemKey(ItemStack stack) {
@@ -286,29 +281,6 @@ public class InventoryManager {
             itemKey += ":" + stack.getTag().toString();
         }
         return itemKey;
-    }
-    
-    /**
-     * Helper method to format item IDs for display
-     */
-    private static String formatItemId(String itemId) {
-        // Convert minecraft:iron_ingot to Iron Ingot
-        if (itemId.contains(":")) {
-            itemId = itemId.substring(itemId.indexOf(":") + 1);
-        }
-        
-        String[] parts = itemId.split("_");
-        StringBuilder formatted = new StringBuilder();
-        
-        for (String part : parts) {
-            if (!part.isEmpty()) {
-                formatted.append(Character.toUpperCase(part.charAt(0)));
-                formatted.append(part.substring(1));
-                formatted.append(" ");
-            }
-        }
-        
-        return formatted.toString().trim();
     }
 
     /**
