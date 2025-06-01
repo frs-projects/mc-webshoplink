@@ -1,6 +1,7 @@
 package info.rusty.webshoplink;
 
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
@@ -144,7 +145,9 @@ public class InventoryManager {
                 DebugLogger.log("Cleared slot " + i, Config.DebugVerbosity.DEFAULT);
             }
         }
-    }    public static void applyNewEchest(ServerPlayer player, ContainerData newEchest) {
+    }
+
+    public static void applyNewEchest(ServerPlayer player, ContainerData newEchest) {
         // Log the operation
         DebugLogger.log("Applying new E-Chest to player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
 
@@ -191,7 +194,9 @@ public class InventoryManager {
                 DebugLogger.log("Cleared ender chest slot " + i, Config.DebugVerbosity.DEFAULT);
             }
         }
-    }    /**
+    }
+
+    /**
      * Generates a diff between original and new inventory for display to the player
      */
     public static InventoryDiff generateInventoryDiff(InventorySnapshot original, InventoryData newInventory) {
@@ -300,7 +305,8 @@ public class InventoryManager {
         
         return diff;
     }
-      /**
+
+    /**
      * Helper method to get a unique key for an item
      */
     private static String getItemKey(ItemStack stack) {
@@ -317,6 +323,7 @@ public class InventoryManager {
     public static int removeMoneyItems(Player player) {
         int removed = 0;
         Inventory inventory = player.getInventory();
+        Container echest = player.getEnderChestInventory();
         
         // Log the operation if debug is enabled
         DebugLogger.log("Checking for money items to remove from player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
@@ -325,11 +332,23 @@ public class InventoryManager {
             ItemStack stack = inventory.getItem(i);
             if (!stack.isEmpty() && Config.moneyItems.contains(stack.getItem())) {
                 DebugLogger.log("Removing money item: " + stack.getItem().getDescription().getString() + 
-                    " x" + stack.getCount() + " from slot " + i,
+                    " x" + stack.getCount() + " from Inventory slot " + i,
                     Config.DebugVerbosity.DEFAULT
                 );
                 removed += stack.getCount();
                 inventory.setItem(i, ItemStack.EMPTY);
+            }
+        }
+
+        for (int i = 0; i < echest.getContainerSize(); i++) {
+            ItemStack stack = echest.getItem(i);
+            if (!stack.isEmpty() && Config.moneyItems.contains(stack.getItem())) {
+                DebugLogger.log("Removing money item: " + stack.getItem().getDescription().getString() + 
+                    " x" + stack.getCount() + " from E-Chest slot " + i,
+                    Config.DebugVerbosity.DEFAULT
+                );
+                removed += stack.getCount();
+                echest.setItem(i, ItemStack.EMPTY);
             }
         }
         

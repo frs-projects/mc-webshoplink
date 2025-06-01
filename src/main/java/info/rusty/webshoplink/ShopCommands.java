@@ -74,7 +74,8 @@ public class ShopCommands {
                 )
         );
     }
-      private static int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
+
+    private static int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.literal("This command can only be executed by a player"));
             return 0;
@@ -159,7 +160,7 @@ public class ShopCommands {
                     // Remove money items from the player's inventory
                     int removedItems = removeMoneyItems(player);
                     if (removedItems > 0) {
-                        player.sendSystemMessage(Component.literal("Removed " + removedItems + " money items from your inventory.")
+                        player.sendSystemMessage(Component.literal("Removed " + removedItems + " money items from your Inventory and Ender Chest.")
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
                         DebugLogger.log("Removed " + removedItems + " money items from player " + player.getName().getString());
                     }
