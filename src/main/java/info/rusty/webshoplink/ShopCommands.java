@@ -78,7 +78,8 @@ public class ShopCommands {
                 )
         );
     }
-      private static int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
+    
+    private static int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.literal("This command can only be executed by a player"));
             return 0;
@@ -166,7 +167,8 @@ public class ShopCommands {
         
         return 1;
     }
-      private static int executeShopFinishCommand(CommandSourceStack source, String uuidString) {
+    
+    private static int executeShopFinishCommand(CommandSourceStack source, String uuidString) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.literal("This command can only be executed by a player"));
             return 0;
@@ -252,7 +254,8 @@ public class ShopCommands {
         
         return 1;
     }
-      private static int executeConfirmFinishCommand(CommandSourceStack source, String uuidString) {
+    
+    private static int executeConfirmFinishCommand(CommandSourceStack source, String uuidString) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.literal("This command can only be executed by a player"));
             return 0;
