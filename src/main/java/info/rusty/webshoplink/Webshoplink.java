@@ -93,15 +93,22 @@ public class Webshoplink {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         LOGGER.info("Registering shop commands");
         
-        // Register "shop" command
+        // Register "shop" command with optional label parameter
         event.getDispatcher().register(
             Commands.literal("shop")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
                 .then(Commands.argument("type", StringArgumentType.string())
                     .executes(context -> {
                         return executeShopCommand(context.getSource(), 
-                            StringArgumentType.getString(context, "type"));
+                            StringArgumentType.getString(context, "type"), "Trader");
                     })
+                    .then(Commands.argument("label", StringArgumentType.greedyString())
+                        .executes(context -> {
+                            return executeShopCommand(context.getSource(), 
+                                StringArgumentType.getString(context, "type"),
+                                StringArgumentType.getString(context, "label"));
+                        })
+                    )
                 )
         );
         
@@ -130,7 +137,7 @@ public class Webshoplink {
         );
     }
     
-    private int executeShopCommand(CommandSourceStack source, String shopSlug) {
+    private int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.literal("This command can only be executed by a player"));
             return 0;
@@ -177,32 +184,50 @@ public class Webshoplink {
                         UUID processId = UUID.fromString(shopResponse.getUuid());
                         
                         // Create a shop process and save the player's current inventory
-                        ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot);
+                        ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot, shopLabel);
                         ACTIVE_SHOP_PROCESSES.put(processId, shopProcess);
                         
                         // Store the response data in the shop process
                         shopProcess.setWebLink(shopResponse.getLink());
                         shopProcess.setTwoFactorCode(shopResponse.getTwoFactorCode());
                         
-                        // Send the response to the player
-                        Component linkComponent = Component.literal("Click the following link to open the shop: ")
-                                .append(Component.literal(shopResponse.getLink())
+                        // Create formatted header with the shop label
+                        Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Trader", true);
+                        Component footerComponent = createShopBorder("", false);
+                        Component spacerComponent = Component.literal("");
+                        
+                        // Step 1: Open Shop link
+                        Component openShopComponent = Component.literal("1. ")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
+                                .append(Component.literal(">>>> Open Shop <<<<")
                                         .withStyle(Style.EMPTY
                                                 .withColor(ChatFormatting.BLUE)
                                                 .withUnderlined(true)
                                                 .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, shopResponse.getLink()))
-                                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to open shop")))));
+                                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Open the shop in your browser")))));
+                                                
+                        // Step 2: Instructions
+                        Component instructionsComponent = Component.literal("2. Make your Purchases in the Browser")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE));
                         
-                        // Use the UUID directly from the API response for the finish command
-                        Component finishComponent = Component.literal("When finished shopping, click here to complete your purchase")
-                                .withStyle(Style.EMPTY
-                                        .withColor(ChatFormatting.GOLD)
-                                        .withUnderlined(true)
-                                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/shopFinish " + shopResponse.getUuid()))
-                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to complete purchase"))));
+                        // Step 3: Finish Trade
+                        Component finishComponent = Component.literal("3. ")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
+                                .append(Component.literal(">>>> Finish Trade <<<<")
+                                        .withStyle(Style.EMPTY
+                                                .withColor(ChatFormatting.GOLD)
+                                                .withUnderlined(true)
+                                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/shopFinish " + shopResponse.getUuid()))
+                                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to complete purchase")))));
                         
-                        player.sendSystemMessage(linkComponent);
+                        // Send the complete shop UI to the player
+                        player.sendSystemMessage(spacerComponent);
+                        player.sendSystemMessage(headerComponent);
+                        player.sendSystemMessage(openShopComponent);
+                        player.sendSystemMessage(instructionsComponent);
                         player.sendSystemMessage(finishComponent);
+                        player.sendSystemMessage(footerComponent);
+                        player.sendSystemMessage(spacerComponent);
                         
                         // Remove money items from the player's inventory
                         int removedItems = removeMoneyItems(player);
@@ -274,6 +299,13 @@ public class Webshoplink {
                         // Parse the response
                         ShopFinishResponse finishResponse = GSON.fromJson(response.body(), ShopFinishResponse.class);
                         
+                        // Log the inventory structure for debugging
+                        if (finishResponse.getInventories() != null) {
+                            LOGGER.debug("Inventory structure: " + GSON.toJson(finishResponse.getInventories()));
+                        } else {
+                            LOGGER.warn("Received null inventories in response");
+                        }
+                        
                         // Get the inventory data from the new response format
                         InventoryData inventoryData = finishResponse.getInventoryData();
                         
@@ -290,16 +322,30 @@ public class Webshoplink {
                         String diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData);
                         
                         // Create the confirmation message with a clickable button
-                        Component confirmComponent = Component.literal("Your shopping cart contains the following changes:\n")
-                                .append(Component.literal(diff).withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)))
-                                .append(Component.literal("\n\nClick here to confirm and apply these changes")
+                        Component spacerComponent = Component.literal("");
+                        Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Cart", true);
+                        Component footerComponent = createShopBorder("", false);
+                        
+                        Component diffComponent = Component.literal("Your shopping cart contains the following changes:\n")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE))
+                                .append(Component.literal(diff).withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+                        
+                        Component confirmComponent = Component.literal(">>>> ")
+                                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
+                                .append(Component.literal("Confirm and Apply Changes")
                                         .withStyle(Style.EMPTY
                                                 .withColor(ChatFormatting.GREEN)
                                                 .withUnderlined(true)
                                                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/confirmFinish " + processId))
-                                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to confirm purchase")))));
+                                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to confirm purchase")))))
+                                .append(Component.literal(" <<<<").withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
                         
+                        player.sendSystemMessage(spacerComponent);
+                        player.sendSystemMessage(headerComponent);
+                        player.sendSystemMessage(diffComponent);
                         player.sendSystemMessage(confirmComponent);
+                        player.sendSystemMessage(footerComponent);
+                        player.sendSystemMessage(spacerComponent);
                         
                     } catch (Exception e) {
                         LOGGER.error("Error processing shop finish response", e);
@@ -365,7 +411,17 @@ public class Webshoplink {
                         return null;
                     });
             
-            player.sendSystemMessage(Component.literal("Purchase completed successfully!"));
+            Component spacerComponent = Component.literal("");
+            Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Trader", true);
+            Component successComponent = Component.literal("Purchase completed successfully!")
+                    .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
+            Component footerComponent = createShopBorder("", false);
+            
+            player.sendSystemMessage(spacerComponent);
+            player.sendSystemMessage(headerComponent);
+            player.sendSystemMessage(successComponent);
+            player.sendSystemMessage(footerComponent);
+            player.sendSystemMessage(spacerComponent);
             
             // Remove the completed shop process
             ACTIVE_SHOP_PROCESSES.remove(processId);
@@ -827,14 +883,16 @@ public class Webshoplink {
         private final UUID playerId;
         private final UUID processId;
         private final InventorySnapshot originalInventory;
+        private final String shopLabel;
         private String webLink;
         private String twoFactorCode;
         private InventoryData newInventory;
         
-        public ShopProcess(UUID playerId, UUID processId, InventorySnapshot originalInventory) {
+        public ShopProcess(UUID playerId, UUID processId, InventorySnapshot originalInventory, String shopLabel) {
             this.playerId = playerId;
             this.processId = processId;
             this.originalInventory = originalInventory;
+            this.shopLabel = shopLabel;
         }
         
         public UUID getPlayerId() {
@@ -847,6 +905,10 @@ public class Webshoplink {
         
         public InventorySnapshot getOriginalInventory() {
             return originalInventory;
+        }
+        
+        public String getShopLabel() {
+            return shopLabel;
         }
         
         public String getWebLink() {
@@ -905,14 +967,12 @@ public class Webshoplink {
             }
             
             try {
-                @SuppressWarnings("unchecked")
-                List<ItemStackData> mainInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("mainInventory"));
-                @SuppressWarnings("unchecked")
-                List<ItemStackData> armorInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("armorInventory"));
-                @SuppressWarnings("unchecked")
-                List<ItemStackData> offhandInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("offhandInventory"));
-                @SuppressWarnings("unchecked")
-                List<ItemStackData> enderChestInventory = convertToItemStackDataList((List<Map<String, Object>>) inventories.get("enderChestInventory"));
+                LOGGER.debug("Parsing inventory data from response: " + GSON.toJson(inventories));
+                
+                List<ItemStackData> mainInventory = parseInventoryList(inventories.get("mainInventory"));
+                List<ItemStackData> armorInventory = parseInventoryList(inventories.get("armorInventory"));
+                List<ItemStackData> offhandInventory = parseInventoryList(inventories.get("offhandInventory"));
+                List<ItemStackData> enderChestInventory = parseInventoryList(inventories.get("enderChestInventory"));
                 
                 return new InventoryData(mainInventory, armorInventory, offhandInventory, enderChestInventory);
             } catch (Exception e) {
@@ -921,19 +981,39 @@ public class Webshoplink {
             }
         }
         
-        private List<ItemStackData> convertToItemStackDataList(List<Map<String, Object>> items) {
-            if (items == null) {
-                return new ArrayList<>();
+        private List<ItemStackData> parseInventoryList(Object inventoryObj) {
+            List<ItemStackData> result = new ArrayList<>();
+            if (inventoryObj == null) {
+                return result;
             }
             
-            List<ItemStackData> result = new ArrayList<>();
-            for (Map<String, Object> item : items) {
-                String itemId = (String) item.get("itemId");
-                int count = ((Number) item.get("count")).intValue();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> nbt = (Map<String, Object>) item.get("nbt");
-                result.add(new ItemStackData(itemId, count, nbt));
+            if (inventoryObj instanceof List) {
+                List<?> inventoryList = (List<?>) inventoryObj;
+                for (Object item : inventoryList) {
+                    try {
+                        if (item instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> itemMap = (Map<String, Object>) item;
+                            String itemId = String.valueOf(itemMap.get("itemId"));
+                            int count = itemMap.get("count") instanceof Number ? 
+                                       ((Number) itemMap.get("count")).intValue() : 0;
+                            
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> nbt = itemMap.get("nbt") instanceof Map ? 
+                                                     (Map<String, Object>) itemMap.get("nbt") : null;
+                            
+                            result.add(new ItemStackData(itemId, count, nbt));
+                        } else {
+                            LOGGER.warn("Unexpected item format in inventory list: " + item.getClass().getName());
+                        }
+                    } catch (Exception e) {
+                        LOGGER.error("Error parsing item data: " + item, e);
+                    }
+                }
+            } else {
+                LOGGER.warn("Unexpected inventory format: " + inventoryObj.getClass().getName());
             }
+            
             return result;
         }
     }
@@ -967,5 +1047,30 @@ public class Webshoplink {
         }
         
         return totalRemoved;
+    }
+
+    /**
+     * Creates a padded header or footer line for shop UI
+     * @param label The shop label to include in the header
+     * @param isHeader Whether this is a header (true) or footer (false)
+     * @return A formatted component with proper padding
+     */
+    private Component createShopBorder(String label, boolean isHeader) {
+        String content = isHeader ? " " + label + " " : "";
+        int totalLength = 30; // Target total length for consistent sizing
+        int fillerLength = totalLength - content.length();
+        int leftPadding = fillerLength / 2;
+        int rightPadding = fillerLength - leftPadding;
+        
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < leftPadding; i++) {
+            builder.append("=");
+        }
+        builder.append(content);
+        for (int i = 0; i < rightPadding; i++) {
+            builder.append("=");
+        }
+        
+        return Component.literal(builder.toString()).withStyle(Style.EMPTY.withColor(ChatFormatting.AQUA));
     }
 }
