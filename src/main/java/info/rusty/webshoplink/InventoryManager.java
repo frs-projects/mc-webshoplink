@@ -12,6 +12,8 @@ import info.rusty.webshoplink.DataTypes.InventorySnapshot;
 import info.rusty.webshoplink.DataTypes.InventoryData;
 import info.rusty.webshoplink.DataTypes.ItemStackData;
 import info.rusty.webshoplink.NbtUtils;
+import info.rusty.webshoplink.DebugLogger;
+import info.rusty.webshoplink.Config;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -110,6 +112,9 @@ public class InventoryManager {
      * Applies a new inventory to a player
      */
     public static void applyNewInventory(ServerPlayer player, InventoryData newInventory) {
+        // Log the operation
+        DebugLogger.log("Applying new inventory to player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+        
         // Clear current inventory
         player.getInventory().clearContent();
         
@@ -137,12 +142,20 @@ public class InventoryManager {
             ItemStackData itemData = newInventory.getEnderChest().get(i);
             player.getEnderChestInventory().setItem(i, deserializeItemStack(itemData));
         }
-    }
-
-    /**
+        
+        DebugLogger.log("Applied inventory: " +
+            "\n  - Main: " + countNonEmptyItems(newInventory.getMainInventory()) + " items" +
+            "\n  - Armor: " + countNonEmptyItems(newInventory.getArmorInventory()) + " items" +
+            "\n  - Offhand: " + countNonEmptyItems(newInventory.getOffhandInventory()) + " items" +
+            "\n  - Ender: " + countNonEmptyItems(newInventory.getEnderChest()) + " items",
+            Config.DebugVerbosity.DEFAULT
+        );
+    }    /**
      * Serializes a player's inventory to a format suitable for API communication
      */
     public static InventoryData serializeInventory(Player player) {
+        DebugLogger.log("Serializing inventory for player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+        
         Inventory inventory = player.getInventory();
         List<ItemStackData> mainInventory = new ArrayList<>();
         List<ItemStackData> armorInventory = new ArrayList<>();
@@ -169,7 +182,17 @@ public class InventoryManager {
             enderChest.add(serializeItemStack(player.getEnderChestInventory().getItem(i)));
         }
         
-        return new InventoryData(mainInventory, armorInventory, offhandInventory, enderChest);
+        InventoryData result = new InventoryData(mainInventory, armorInventory, offhandInventory, enderChest);
+        
+        DebugLogger.log("Serialized inventory: " +
+            "\n  - Main: " + countNonEmptyItems(mainInventory) + " items" +
+            "\n  - Armor: " + countNonEmptyItems(armorInventory) + " items" +
+            "\n  - Offhand: " + countNonEmptyItems(offhandInventory) + " items" +
+            "\n  - Ender: " + countNonEmptyItems(enderChest) + " items",
+            Config.DebugVerbosity.DEFAULT
+        );
+        
+        return result;
     }
 
     /**
@@ -194,7 +217,9 @@ public class InventoryManager {
         }
         
         return new ItemStackData(itemId, count, nbt);
-    }    /**
+    }
+    
+    /**
      * Converts an NBT CompoundTag to a Map for serialization
      * This is a legacy method, use NbtUtils.minecraftNbtToJson() for new code
      */
@@ -206,32 +231,38 @@ public class InventoryManager {
         // Store the full JSON representation - simpler approach
         map.put("nbtJson", json);
     }
-
+    
     /**
      * Deserializes ItemStackData back to an ItemStack
      */
     public static ItemStack deserializeItemStack(ItemStackData data) {
         if (data == null || "minecraft:air".equals(data.getItemId()) || data.getCount() <= 0) {
+            DebugLogger.log("Deserializing empty item", Config.DebugVerbosity.ALL);
             return ItemStack.EMPTY;
         }
+        
+        DebugLogger.log("Deserializing item: " + data.getItemId() + " x" + data.getCount(), Config.DebugVerbosity.ALL);
         
         net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
                 .getValue(ResourceLocation.tryParse(data.getItemId()));
         
         if (item == null) {
-            LOGGER.warn("Unknown item ID: " + data.getItemId());
+            DebugLogger.logError("Unknown item ID: " + data.getItemId(), null);
             return ItemStack.EMPTY;
         }
           ItemStack stack = new ItemStack(item, data.getCount());
         
         // Handle NBT data if present
         if (data.getNbt() != null && !data.getNbt().isEmpty()) {
+            DebugLogger.log("Item has NBT data", Config.DebugVerbosity.ALL);
+            
             if (data.getNbt().containsKey("nbtJson")) {
                 String json = (String) data.getNbt().get("nbtJson");
                 net.minecraft.nbt.CompoundTag nbtTag = NbtUtils.jsonToMinecraftNbt(json);
                 stack.setTag(nbtTag);
             } else {
                 // Legacy fallback for old data format
+                DebugLogger.log("Using legacy NBT format", Config.DebugVerbosity.ALL);
                 net.minecraft.nbt.CompoundTag nbtTag = new net.minecraft.nbt.CompoundTag();
                 convertMapToNbt(data.getNbt(), nbtTag);
                 stack.setTag(nbtTag);
@@ -239,7 +270,9 @@ public class InventoryManager {
         }
         
         return stack;
-    }    /**
+    }
+    
+    /**
      * Converts a Map back to an NBT CompoundTag
      * This is a legacy method, use NbtUtils.jsonToMinecraftNbt() for new code
      */
@@ -301,16 +334,19 @@ public class InventoryManager {
             }
         }
     }
-
+    
     /**
      * Generates a diff between original and new inventory for display to the player
      */
     public static String generateInventoryDiff(InventorySnapshot original, InventoryData newInventory) {
+        DebugLogger.log("Generating inventory diff", Config.DebugVerbosity.MINIMAL);
+        
         StringBuilder diff = new StringBuilder();
         
         // Compare main inventory
         diff.append("Main Inventory Changes:\n");
         boolean hasMainChanges = false;
+        int mainChangesCount = 0;
         
         for (int i = 0; i < original.getMainInventory().length && i < newInventory.getMainInventory().size(); i++) {
             ItemStack origStack = original.getMainInventory()[i];
@@ -318,6 +354,10 @@ public class InventoryManager {
             
             if (!compareItemStacks(origStack, newStack)) {
                 hasMainChanges = true;
+                mainChangesCount++;
+                
+                DebugLogger.log("Found main inventory diff at slot " + i, Config.DebugVerbosity.ALL);
+                
                 diff.append("Slot ").append(i).append(": ");
                 
                 if (origStack.isEmpty() && !("minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0)) {
@@ -337,13 +377,20 @@ public class InventoryManager {
             diff.append("No changes\n");
         }
         
+        DebugLogger.log("Main inventory changes: " + mainChangesCount, Config.DebugVerbosity.ALL);
+        
         // For simplicity, just mention if there are armor/offhand changes rather than detailing them
         diff.append("\nArmor & Offhand: ");
         boolean hasArmorChanges = false;
+        int armorChangesCount = 0;
         
         for (int i = 0; i < original.getArmorInventory().length && i < newInventory.getArmorInventory().size(); i++) {
             if (!compareItemStacks(original.getArmorInventory()[i], newInventory.getArmorInventory().get(i))) {
                 hasArmorChanges = true;
+                armorChangesCount++;
+                
+                DebugLogger.log("Found armor inventory diff at slot " + i, Config.DebugVerbosity.ALL);
+
                 break;
             }
         }
@@ -351,6 +398,10 @@ public class InventoryManager {
         for (int i = 0; i < original.getOffhandInventory().length && i < newInventory.getOffhandInventory().size(); i++) {
             if (!compareItemStacks(original.getOffhandInventory()[i], newInventory.getOffhandInventory().get(i))) {
                 hasArmorChanges = true;
+                armorChangesCount++;
+                
+                DebugLogger.log("Found offhand inventory diff", Config.DebugVerbosity.ALL);
+                
                 break;
             }
         }
@@ -361,13 +412,18 @@ public class InventoryManager {
             diff.append("No changes");
         }
         
+        DebugLogger.log("Armor & offhand changes: " + armorChangesCount, Config.DebugVerbosity.DEFAULT);
+        
         // Add enderchest changes information
         diff.append("\n\nEnder Chest: ");
         boolean hasEnderChestChanges = false;
+        int enderChangesCount = 0;
         
         for (int i = 0; i < original.getEnderChest().length && i < newInventory.getEnderChest().size(); i++) {
             if (!compareItemStacks(original.getEnderChest()[i], newInventory.getEnderChest().get(i))) {
                 hasEnderChestChanges = true;
+                enderChangesCount++;
+                DebugLogger.log("Found ender chest diff at slot " + i, Config.DebugVerbosity.ALL);
                 break;
             }
         }
@@ -377,6 +433,8 @@ public class InventoryManager {
         } else {
             diff.append("No changes");
         }
+        
+        DebugLogger.log("Ender chest changes: " + enderChangesCount, Config.DebugVerbosity.DEFAULT);
         
         return diff.toString();
     }
@@ -406,14 +464,35 @@ public class InventoryManager {
         int removed = 0;
         Inventory inventory = player.getInventory();
         
+        // Log the operation if debug is enabled
+        DebugLogger.log("Checking for money items to remove from player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+        
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
             if (!stack.isEmpty() && Config.moneyItems.contains(stack.getItem())) {
+                DebugLogger.log("Removing money item: " + stack.getItem().getDescription().getString() + 
+                    " x" + stack.getCount() + " from slot " + i,
+                    Config.DebugVerbosity.DEFAULT
+                );
                 removed += stack.getCount();
                 inventory.setItem(i, ItemStack.EMPTY);
             }
         }
         
+        DebugLogger.log("Removed " + removed + " money items from player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+        
         return removed;
+    }
+
+    /**
+     * Count non-empty items in a list of ItemStackData
+     */
+    public static int countNonEmptyItems(List<ItemStackData> items) {
+        if (items == null) return 0;
+        
+        return (int) items.stream()
+                .filter(item -> item != null && 
+                        !("minecraft:air".equals(item.getItemId()) || item.getCount() <= 0))
+                .count();
     }
 }

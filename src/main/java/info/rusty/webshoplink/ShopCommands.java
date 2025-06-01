@@ -84,6 +84,9 @@ public class ShopCommands {
             return 0;
         }
         
+        // Log command execution
+        DebugLogger.log("Player " + player.getName().getString() + " executed shop command with slug: " + shopSlug + ", label: " + shopLabel, Config.DebugVerbosity.MINIMAL);
+        
         // Capture the player's current inventory for later verification
         InventorySnapshot inventorySnapshot = captureInventory(player);
         
@@ -91,7 +94,7 @@ public class ShopCommands {
         InventoryData inventoryData = serializeInventory(player);
         
         // Send API request to initiate shop process
-        ApiService.initiateShop(player.getUUID(), shopSlug, inventoryData)
+        ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventoryData)
             .thenAccept(shopResponse -> {
                 try {
                     // Use the UUID from the response
@@ -148,15 +151,15 @@ public class ShopCommands {
                     if (removedItems > 0) {
                         player.sendSystemMessage(Component.literal("Removed " + removedItems + " money items from your inventory.")
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
-                        LOGGER.info("Removed " + removedItems + " money items from player " + player.getName().getString());
+                        DebugLogger.log("Removed " + removedItems + " money items from player " + player.getName().getString());
                     }
                 } catch (Exception e) {
-                    LOGGER.error("Error processing shop response", e);
+                    DebugLogger.logError("Error processing shop response", e);
                     player.sendSystemMessage(Component.literal("Error processing shop response. Please try again later."));
                 }
             })
             .exceptionally(e -> {
-                LOGGER.error("Error connecting to shop API", e);
+                DebugLogger.logError("Error connecting to shop API", e);
                 player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
                 return null;
             });
@@ -174,27 +177,32 @@ public class ShopCommands {
             UUID processId = UUID.fromString(uuidString);
             ShopProcess shopProcess = ACTIVE_SHOP_PROCESSES.get(processId);
             
+            // Log shop finish attempt
+            DebugLogger.log("Player " + player.getName().getString() + " executing shopFinish command for process: " + processId, Config.DebugVerbosity.MINIMAL);
+            
             // Verify this shop process belongs to the player
             if (shopProcess == null || !shopProcess.getPlayerId().equals(player.getUUID())) {
+                DebugLogger.log("No active shopping process found for player " + player.getName().getString() + " with ID: " + processId);
                 player.sendSystemMessage(Component.literal("No active shopping process found for that ID."));
                 return 0;
             }
             
             // Make the API call to finish the shop process
-            ApiService.finishShop(processId, shopProcess.getTwoFactorCode())
+            ApiService.finishShop(processId, player.getName().getString(), shopProcess.getTwoFactorCode())
                 .thenAccept(finishResponse -> {
                     try {
                         // Get the inventory data from the response
                         InventoryData inventoryData = finishResponse.getInventoryData();
                         
                         if (inventoryData == null) {
-                            LOGGER.error("Failed to parse inventory data from response");
+                            DebugLogger.logError("Failed to parse inventory data from response", null);
                             player.sendSystemMessage(Component.literal("Error processing shop finish response. Please try again later."));
                             return;
                         }
                         
                         // Store the new inventory in the shop process
                         shopProcess.setNewInventory(inventoryData);
+                        DebugLogger.log("Successfully stored new inventory for player " + player.getName().getString() + ", process: " + processId);
                         
                         // Generate and show a diff to the player
                         String diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData);
@@ -226,17 +234,18 @@ public class ShopCommands {
                         player.sendSystemMessage(spacerComponent);
                         
                     } catch (Exception e) {
-                        LOGGER.error("Error processing shop finish response", e);
+                        DebugLogger.logError("Error processing shop finish response", e);
                         player.sendSystemMessage(Component.literal("Error processing shop finish response. Please try again later."));
                     }
                 })
                 .exceptionally(e -> {
-                    LOGGER.error("Error connecting to shop finish API", e);
+                    DebugLogger.logError("Error connecting to shop finish API", e);
                     player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
                     return null;
                 });
             
         } catch (IllegalArgumentException e) {
+            DebugLogger.logError("Invalid UUID format in shopFinish command: " + uuidString, e);
             player.sendSystemMessage(Component.literal("Invalid UUID format. Please use the UUID provided in the shop link."));
             return 0;
         }
@@ -253,13 +262,18 @@ public class ShopCommands {
             UUID processId = UUID.fromString(uuidString);
             ShopProcess shopProcess = ACTIVE_SHOP_PROCESSES.get(processId);
             
+            // Log confirmation attempt
+            DebugLogger.log("Player " + player.getName().getString() + " confirming shop process: " + processId);
+            
             if (shopProcess == null || !shopProcess.getPlayerId().equals(player.getUUID())) {
+                DebugLogger.log("No active shopping process found for player " + player.getName().getString() + " with ID: " + processId);
                 player.sendSystemMessage(Component.literal("No active shopping process found with that ID."));
                 return 0;
             }
             
             // Check if the player's inventory has changed since the shop process started
             if (!inventoriesMatch(shopProcess.getOriginalInventory(), captureInventory(player))) {
+                DebugLogger.log("Inventory changed for player " + player.getName().getString() + ", purchase cancelled", Config.DebugVerbosity.MINIMAL);
                 player.sendSystemMessage(Component.literal("Your inventory has changed since starting the shop process. Purchase cancelled."));
                 ACTIVE_SHOP_PROCESSES.remove(processId);
                 return 0;
@@ -267,11 +281,13 @@ public class ShopCommands {
             
             // Apply the new inventory from the shop process
             applyNewInventory(player, shopProcess.getNewInventory());
+            DebugLogger.log("Applied inventory changes to player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+            DebugLogger.log("Applied inventory changes from session " + processId + " to player " + player.getName().getString());
             
             // Notify the API that the changes were applied
             ApiService.notifyChangesApplied(processId)
                 .exceptionally(e -> {
-                    LOGGER.error("Error notifying API of applied changes", e);
+                    DebugLogger.logError("Error notifying API of applied changes", e);
                     return null;
                 });
             
@@ -287,10 +303,14 @@ public class ShopCommands {
             player.sendSystemMessage(footerComponent);
             player.sendSystemMessage(spacerComponent);
             
+            // Log completion
+            DebugLogger.log("Purchase completed successfully for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.MINIMAL);
+            
             // Remove the completed shop process
             ACTIVE_SHOP_PROCESSES.remove(processId);
             
         } catch (IllegalArgumentException e) {
+            DebugLogger.logError("Invalid UUID format in confirmFinish command: " + uuidString, e);
             player.sendSystemMessage(Component.literal("Invalid UUID format. Please use the UUID provided in the shop link."));
             return 0;
         }

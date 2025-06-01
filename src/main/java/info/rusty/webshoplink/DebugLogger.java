@@ -22,12 +22,14 @@ public class DebugLogger {
      * @param message The message to log
      * @param minimumVerbosity The minimum verbosity level required to log this message
      */
+    public static void log(String message) {
+        log(message, Config.DebugVerbosity.DEFAULT);
+    }
+
     public static void log(String message, Config.DebugVerbosity minimumVerbosity) {
         if (Config.debugEnabled && Config.debugVerbosity.ordinal() >= minimumVerbosity.ordinal()) {
             LOGGER.info("[Webshoplink Debug] " + message);
         }
-
-        return;
     }
 
     /**

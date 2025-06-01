@@ -70,7 +70,8 @@ public class DataTypes {
         public int getCount() {
             return count;
         }
-          public Map<String, Object> getNbt() {
+
+        public Map<String, Object> getNbt() {
             return nbt;
         }
         
@@ -204,7 +205,8 @@ public class DataTypes {
         
         public void setTwoFactorCode(String twoFactorCode) {
             this.twoFactorCode = twoFactorCode;
-        }    }
+        }
+    }
     
     /**
      * Response from the shop API when finishing a shop session
@@ -217,7 +219,8 @@ public class DataTypes {
         public Map<String, Object> getInventories() {
             return inventories;
         }
-          public void setInventories(Map<String, Object> inventories) {
+
+        public void setInventories(Map<String, Object> inventories) {
             this.inventories = inventories;
             
             // If inventoryData is null but inventories is available, try to convert
@@ -229,7 +232,8 @@ public class DataTypes {
                 }
             }
         }
-          private void convertInventoriesToInventoryData() {
+
+        private void convertInventoriesToInventoryData() {
             if (inventories == null) return;
             
             try {
@@ -263,7 +267,8 @@ public class DataTypes {
                 LOGGER.error("Failed to convert inventories to inventoryData", e);
             }
         }
-          private List<ItemStackData> convertToItemStackDataList(List<Map<String, Object>> items) {
+
+        private List<ItemStackData> convertToItemStackDataList(List<Map<String, Object>> items) {
             List<ItemStackData> result = new ArrayList<>();
             
             if (items != null) {
