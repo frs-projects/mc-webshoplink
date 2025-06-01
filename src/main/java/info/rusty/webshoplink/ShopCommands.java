@@ -374,21 +374,6 @@ public class ShopCommands {
                             .withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
                     return null;
                 });
-            
-            Component spacerComponent = Component.literal("");
-            Component headerComponent = createShopBorder(shopProcess.getShopLabel(), true);
-            Component successComponent = Component.literal("Purchase completed successfully!")
-                    .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
-            Component footerComponent = createShopBorder("", false);
-            
-            player.sendSystemMessage(spacerComponent);
-            player.sendSystemMessage(headerComponent);
-            player.sendSystemMessage(successComponent);
-            player.sendSystemMessage(footerComponent);
-            player.sendSystemMessage(spacerComponent);
-              // Log completion
-            DebugLogger.log("Purchase verification started for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.MINIMAL);
-            
         } catch (IllegalArgumentException e) {
             DebugLogger.logError("Invalid UUID format in confirmFinish command: " + uuidString, e);
             player.sendSystemMessage(Component.literal("Invalid UUID format. Please use the UUID provided in the shop link."));
