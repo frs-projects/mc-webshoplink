@@ -1,31 +1,19 @@
 package info.rusty.webshoplink;
 
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
-import org.slf4j.Logger;
-import com.mojang.logging.LogUtils;
 import info.rusty.webshoplink.DataTypes.InventorySnapshot;
 import info.rusty.webshoplink.DataTypes.InventoryData;
-import info.rusty.webshoplink.DataTypes.ItemStackData;
-import info.rusty.webshoplink.NbtUtils;
-import info.rusty.webshoplink.DebugLogger;
-import info.rusty.webshoplink.Config;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import info.rusty.webshoplink.DataTypes.ContainerData;
+import info.rusty.webshoplink.DataTypes.ItemList;
+import info.rusty.webshoplink.DataTypes.ItemData;
 
 /**
  * Handles all inventory operations for the Webshoplink mod.
  */
 public class InventoryManager {
-    private static final Logger LOGGER = LogUtils.getLogger();
-
     /**
      * Captures a snapshot of a player's inventory
      */
@@ -114,347 +102,52 @@ public class InventoryManager {
     public static void applyNewInventory(ServerPlayer player, InventoryData newInventory) {
         // Log the operation
         DebugLogger.log("Applying new inventory to player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
-        
-        // Clear current inventory
-        player.getInventory().clearContent();
-        
-        // Apply new main inventory
-        for (int i = 0; i < newInventory.getMainInventory().size() && i < player.getInventory().getContainerSize(); i++) {
-            ItemStackData itemData = newInventory.getMainInventory().get(i);
-            player.getInventory().setItem(i, deserializeItemStack(itemData));
+
+        ItemList items = newInventory.getItems();
+        for (int i = 0; i < newInventory.getSize(); i++) {
+            // Current slot content
+            ItemStack currentSlotContent = player.getInventory().getItem(i);
+            String currentItemId = currentSlotContent.getClass().toString();
+            Integer currentItemCount = currentSlotContent.getCount();
+            String currentItemNbt = currentSlotContent.getTags().toString();
+            // New slot content
+            ItemData item = items.getItem(i);
+            // Compare details:
+            if (!currentItemId.equals(item.getItemId()) || !currentItemCount.equals(item.getCount()) || !currentItemNbt.equals(item.getNbt())) {
+                // Stack has changed, overwrite with new data.
+                player.getInventory().setItem(i, item.getItemStackData());
+            }
         }
-        
-        // Apply new armor
-        for (int i = 0; i < newInventory.getArmorInventory().size() && i < 4; i++) {
-            ItemStackData itemData = newInventory.getArmorInventory().get(i);
-            player.getInventory().armor.set(i, deserializeItemStack(itemData));
-        }
-        
-        // Apply new offhand
-        if (!newInventory.getOffhandInventory().isEmpty()) {
-            ItemStackData itemData = newInventory.getOffhandInventory().get(0);
-            player.getInventory().offhand.set(0, deserializeItemStack(itemData));
-        }
-        
-        // Apply new enderchest
-        player.getEnderChestInventory().clearContent();
-        for (int i = 0; i < newInventory.getEnderChest().size() && i < player.getEnderChestInventory().getContainerSize(); i++) {
-            ItemStackData itemData = newInventory.getEnderChest().get(i);
-            player.getEnderChestInventory().setItem(i, deserializeItemStack(itemData));
-        }
-        
-        DebugLogger.log("Applied inventory: " +
-            "\n  - Main: " + countNonEmptyItems(newInventory.getMainInventory()) + " items" +
-            "\n  - Armor: " + countNonEmptyItems(newInventory.getArmorInventory()) + " items" +
-            "\n  - Offhand: " + countNonEmptyItems(newInventory.getOffhandInventory()) + " items" +
-            "\n  - Ender: " + countNonEmptyItems(newInventory.getEnderChest()) + " items",
-            Config.DebugVerbosity.DEFAULT
-        );
-    }    /**
-     * Serializes a player's inventory to a format suitable for API communication
-     */
-    public static InventoryData serializeInventory(Player player) {
-        DebugLogger.log("Serializing inventory for player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
-        
-        Inventory inventory = player.getInventory();
-        List<ItemStackData> mainInventory = new ArrayList<>();
-        List<ItemStackData> armorInventory = new ArrayList<>();
-        List<ItemStackData> offhandInventory = new ArrayList<>();
-        List<ItemStackData> enderChest = new ArrayList<>();
-        
-        // Serialize main inventory
-        for (int i = 0; i < inventory.items.size(); i++) {
-            mainInventory.add(serializeItemStack(inventory.items.get(i)));
-        }
-        
-        // Serialize armor
-        for (int i = 0; i < inventory.armor.size(); i++) {
-            armorInventory.add(serializeItemStack(inventory.armor.get(i)));
-        }
-        
-        // Serialize offhand
-        for (int i = 0; i < inventory.offhand.size(); i++) {
-            offhandInventory.add(serializeItemStack(inventory.offhand.get(i)));
-        }
-        
-        // Serialize enderchest
-        for (int i = 0; i < player.getEnderChestInventory().getContainerSize(); i++) {
-            enderChest.add(serializeItemStack(player.getEnderChestInventory().getItem(i)));
-        }
-        
-        InventoryData result = new InventoryData(mainInventory, armorInventory, offhandInventory, enderChest);
-        
-        DebugLogger.log("Serialized inventory: " +
-            "\n  - Main: " + countNonEmptyItems(mainInventory) + " items" +
-            "\n  - Armor: " + countNonEmptyItems(armorInventory) + " items" +
-            "\n  - Offhand: " + countNonEmptyItems(offhandInventory) + " items" +
-            "\n  - Ender: " + countNonEmptyItems(enderChest) + " items",
-            Config.DebugVerbosity.DEFAULT
-        );
-        
-        return result;
     }
 
-    /**
-     * Serializes an ItemStack to ItemStackData
-     */
-    public static ItemStackData serializeItemStack(ItemStack stack) {
-        if (stack.isEmpty()) {
-            return new ItemStackData("minecraft:air", 0, null);
-        }
-        
-        String itemId = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem()).toString();
-        int count = stack.getCount();        Map<String, Object> nbt = null;
-        
-        // Serialize NBT data if present
-        if (stack.hasTag()) {
-            // Convert NBT to JSON using our NbtUtils
-            String json = NbtUtils.minecraftNbtToJson(stack.getTag());
-            
-            // Store it as a map entry so it serializes properly
-            nbt = new HashMap<>();
-            nbt.put("nbtJson", json);
-        }
-        
-        return new ItemStackData(itemId, count, nbt);
-    }
-    
-    /**
-     * Converts an NBT CompoundTag to a Map for serialization
-     * This is a legacy method, use NbtUtils.minecraftNbtToJson() for new code
-     */
-    public static void convertNbtToMap(net.minecraft.nbt.CompoundTag tag, Map<String, Object> map) {
-        // Use the NbtUtils class to convert to JSON and back to a map
-        // This is simpler than manually traversing the NBT structure
-        String json = NbtUtils.minecraftNbtToJson(tag);
-        
-        // Store the full JSON representation - simpler approach
-        map.put("nbtJson", json);
-    }
-    
-    /**
-     * Deserializes ItemStackData back to an ItemStack
-     */
-    public static ItemStack deserializeItemStack(ItemStackData data) {
-        if (data == null || "minecraft:air".equals(data.getItemId()) || data.getCount() <= 0) {
-            DebugLogger.log("Deserializing empty item", Config.DebugVerbosity.ALL);
-            return ItemStack.EMPTY;
-        }
-        
-        DebugLogger.log("Deserializing item: " + data.getItemId() + " x" + data.getCount(), Config.DebugVerbosity.ALL);
-        
-        net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                .getValue(ResourceLocation.tryParse(data.getItemId()));
-        
-        if (item == null) {
-            DebugLogger.logError("Unknown item ID: " + data.getItemId(), null);
-            return ItemStack.EMPTY;
-        }
-          ItemStack stack = new ItemStack(item, data.getCount());
-        
-        // Handle NBT data if present
-        if (data.getNbt() != null && !data.getNbt().isEmpty()) {
-            DebugLogger.log("Item has NBT data", Config.DebugVerbosity.ALL);
-            
-            if (data.getNbt().containsKey("nbtJson")) {
-                String json = (String) data.getNbt().get("nbtJson");
-                net.minecraft.nbt.CompoundTag nbtTag = NbtUtils.jsonToMinecraftNbt(json);
-                stack.setTag(nbtTag);
-            } else {
-                // Legacy fallback for old data format
-                DebugLogger.log("Using legacy NBT format", Config.DebugVerbosity.ALL);
-                net.minecraft.nbt.CompoundTag nbtTag = new net.minecraft.nbt.CompoundTag();
-                convertMapToNbt(data.getNbt(), nbtTag);
-                stack.setTag(nbtTag);
-            }
-        }
-        
-        return stack;
-    }
-    
-    /**
-     * Converts a Map back to an NBT CompoundTag
-     * This is a legacy method, use NbtUtils.jsonToMinecraftNbt() for new code
-     */
-    public static void convertMapToNbt(Map<String, Object> map, net.minecraft.nbt.CompoundTag compoundTag) {
-        // Check if we have the simplified JSON representation
-        if (map.containsKey("nbtJson")) {
-            String json = (String) map.get("nbtJson");
-            net.minecraft.nbt.CompoundTag jsonTag = NbtUtils.jsonToMinecraftNbt(json);
-            
-            // Copy all values to the provided tag
-            for (String key : jsonTag.getAllKeys()) {
-                compoundTag.put(key, jsonTag.get(key));
-            }
-            return;
-        }
-        
-        // Legacy fallback for old format data
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String key = entry.getKey();
-            Object value = entry.getValue();
-            
-            if (value == null) continue;
-            
-            if (value instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> nestedMap = (Map<String, Object>) value;
-                net.minecraft.nbt.CompoundTag nestedTag = new net.minecraft.nbt.CompoundTag();
-                convertMapToNbt(nestedMap, nestedTag);
-                compoundTag.put(key, nestedTag);
-            } else if (value instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Object> list = (List<Object>) value;
-                
-                if (!list.isEmpty()) {
-                    if (list.get(0) instanceof Map) {
-                        net.minecraft.nbt.ListTag listTag = new net.minecraft.nbt.ListTag();
-                        for (Object obj : list) {
-                            if (obj instanceof Map) {
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> mapValue = (Map<String, Object>) obj;
-                                net.minecraft.nbt.CompoundTag listItemTag = new net.minecraft.nbt.CompoundTag();
-                                convertMapToNbt(mapValue, listItemTag);
-                                listTag.add(listItemTag);
-                            }
-                        }
-                        compoundTag.put(key, listTag);
-                    } else {
-                        // For primitive lists, store as string list for simplicity
-                        net.minecraft.nbt.ListTag listTag = new net.minecraft.nbt.ListTag();
-                        for (Object obj : list) {
-                            listTag.add(net.minecraft.nbt.StringTag.valueOf(obj.toString()));
-                        }
-                        compoundTag.put(key, listTag);
-                    }
-                }
-            } else {
-                // For primitives, store as string for simplicity
-                compoundTag.putString(key, value.toString());
+    public static void applyNewEchest(ServerPlayer player, ContainerData newEchest) {
+        // Log the operation
+        DebugLogger.log("Applying new E-Chest to player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+
+        ItemList items = newEchest.getItems();
+        for (int i = 0; i < newEchest.getSize(); i++) {
+            // Current slot content
+            ItemStack currentSlotContent = player.getEnderChestInventory().getItem(i);
+            String currentItemId = currentSlotContent.getClass().toString();
+            Integer currentItemCount = currentSlotContent.getCount();
+            String currentItemNbt = currentSlotContent.getTags().toString();
+            // New slot content
+            ItemData item = items.getItem(i);
+            // Compare details:
+            if (!currentItemId.equals(item.getItemId()) || !currentItemCount.equals(item.getCount()) || !currentItemNbt.equals(item.getNbt())) {
+                // Stack has changed, overwrite with new data.
+                player.getInventory().setItem(i, item.getItemStackData());
             }
         }
     }
-    
+
     /**
      * Generates a diff between original and new inventory for display to the player
      */
     public static String generateInventoryDiff(InventorySnapshot original, InventoryData newInventory) {
         DebugLogger.log("Generating inventory diff", Config.DebugVerbosity.MINIMAL);
         
-        StringBuilder diff = new StringBuilder();
-        
-        // Compare main inventory
-        diff.append("Main Inventory Changes:\n");
-        boolean hasMainChanges = false;
-        int mainChangesCount = 0;
-        
-        for (int i = 0; i < original.getMainInventory().length && i < newInventory.getMainInventory().size(); i++) {
-            ItemStack origStack = original.getMainInventory()[i];
-            ItemStackData newStack = newInventory.getMainInventory().get(i);
-            
-            if (!compareItemStacks(origStack, newStack)) {
-                hasMainChanges = true;
-                mainChangesCount++;
-                
-                DebugLogger.log("Found main inventory diff at slot " + i, Config.DebugVerbosity.ALL);
-                
-                diff.append("Slot ").append(i).append(": ");
-                
-                if (origStack.isEmpty() && !("minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0)) {
-                    diff.append("+ ").append(newStack.getCount()).append("x ").append(newStack.getItemId()).append("\n");
-                } else if (!origStack.isEmpty() && ("minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0)) {
-                    diff.append("- ").append(origStack.getCount()).append("x ")
-                            .append(net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(origStack.getItem())).append("\n");
-                } else {
-                    diff.append("Changed ").append(origStack.getCount()).append("x ")
-                            .append(net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(origStack.getItem()))
-                            .append(" to ").append(newStack.getCount()).append("x ").append(newStack.getItemId()).append("\n");
-                }
-            }
-        }
-        
-        if (!hasMainChanges) {
-            diff.append("No changes\n");
-        }
-        
-        DebugLogger.log("Main inventory changes: " + mainChangesCount, Config.DebugVerbosity.ALL);
-        
-        // For simplicity, just mention if there are armor/offhand changes rather than detailing them
-        diff.append("\nArmor & Offhand: ");
-        boolean hasArmorChanges = false;
-        int armorChangesCount = 0;
-        
-        for (int i = 0; i < original.getArmorInventory().length && i < newInventory.getArmorInventory().size(); i++) {
-            if (!compareItemStacks(original.getArmorInventory()[i], newInventory.getArmorInventory().get(i))) {
-                hasArmorChanges = true;
-                armorChangesCount++;
-                
-                DebugLogger.log("Found armor inventory diff at slot " + i, Config.DebugVerbosity.ALL);
-
-                break;
-            }
-        }
-        
-        for (int i = 0; i < original.getOffhandInventory().length && i < newInventory.getOffhandInventory().size(); i++) {
-            if (!compareItemStacks(original.getOffhandInventory()[i], newInventory.getOffhandInventory().get(i))) {
-                hasArmorChanges = true;
-                armorChangesCount++;
-                
-                DebugLogger.log("Found offhand inventory diff", Config.DebugVerbosity.ALL);
-                
-                break;
-            }
-        }
-        
-        if (hasArmorChanges) {
-            diff.append("Changes detected");
-        } else {
-            diff.append("No changes");
-        }
-        
-        DebugLogger.log("Armor & offhand changes: " + armorChangesCount, Config.DebugVerbosity.DEFAULT);
-        
-        // Add enderchest changes information
-        diff.append("\n\nEnder Chest: ");
-        boolean hasEnderChestChanges = false;
-        int enderChangesCount = 0;
-        
-        for (int i = 0; i < original.getEnderChest().length && i < newInventory.getEnderChest().size(); i++) {
-            if (!compareItemStacks(original.getEnderChest()[i], newInventory.getEnderChest().get(i))) {
-                hasEnderChestChanges = true;
-                enderChangesCount++;
-                DebugLogger.log("Found ender chest diff at slot " + i, Config.DebugVerbosity.ALL);
-                break;
-            }
-        }
-        
-        if (hasEnderChestChanges) {
-            diff.append("Changes detected");
-        } else {
-            diff.append("No changes");
-        }
-        
-        DebugLogger.log("Ender chest changes: " + enderChangesCount, Config.DebugVerbosity.DEFAULT);
-        
-        return diff.toString();
-    }
-
-    /**
-     * Compares an ItemStack with ItemStackData
-     */
-    public static boolean compareItemStacks(ItemStack original, ItemStackData newStack) {
-        if (original.isEmpty() && ("minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0)) {
-            return true;
-        }
-        
-        if (original.isEmpty() || "minecraft:air".equals(newStack.getItemId()) || newStack.getCount() <= 0) {
-            return false;
-        }
-        
-        String origItemId = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(original.getItem()).toString();
-        int origCount = original.getCount();
-        
-        return origItemId.equals(newStack.getItemId()) && origCount == newStack.getCount();
+        return "Not implemented";
     }
 
     /**
@@ -482,17 +175,5 @@ public class InventoryManager {
         DebugLogger.log("Removed " + removed + " money items from player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
         
         return removed;
-    }
-
-    /**
-     * Count non-empty items in a list of ItemStackData
-     */
-    public static int countNonEmptyItems(List<ItemStackData> items) {
-        if (items == null) return 0;
-        
-        return (int) items.stream()
-                .filter(item -> item != null && 
-                        !("minecraft:air".equals(item.getItemId()) || item.getCount() <= 0))
-                .count();
     }
 }

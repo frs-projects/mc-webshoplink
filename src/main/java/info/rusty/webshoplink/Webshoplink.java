@@ -13,18 +13,6 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
-// Import modular classes
-import info.rusty.webshoplink.InventoryManager;
-import info.rusty.webshoplink.ApiService;
-import info.rusty.webshoplink.DataTypes;
-import info.rusty.webshoplink.ShopCommands;
-import info.rusty.webshoplink.UIUtils;
-import info.rusty.webshoplink.DataTypes.InventorySnapshot;
-import info.rusty.webshoplink.DataTypes.InventoryData;
-import info.rusty.webshoplink.DataTypes.ItemStackData;
-import info.rusty.webshoplink.DataTypes.ShopResponse;
-import info.rusty.webshoplink.DataTypes.ShopFinishResponse;
-
 @Mod(Webshoplink.MODID)
 public class Webshoplink {
 

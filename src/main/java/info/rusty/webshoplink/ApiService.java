@@ -4,9 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
-import info.rusty.webshoplink.DataTypes.InventoryData;
-import info.rusty.webshoplink.DataTypes.ShopResponse;
-import info.rusty.webshoplink.DataTypes.ShopFinishResponse;
+import static info.rusty.webshoplink.DataTypes.*;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -32,32 +30,13 @@ public class ApiService {
     /**
      * Initiates a shop session with the API
      */
-    public static CompletableFuture<ShopResponse> initiateShop(UUID playerId, String playerName, String shopSlug, InventoryData inventoryData) {
+    public static CompletableFuture<ShopResponse> initiateShop(UUID playerId, String playerName, String shopSlug, InventoryList inventories) {
         DebugLogger.log("Player " + playerName + " started shop session", Config.DebugVerbosity.MINIMAL);
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("Player ").append(playerName).append(" (").append(playerId).append(") started shop session with slug: ").append(shopSlug).append("\n");
-        sb.append("  - Main Inventory: ").append(InventoryManager.countNonEmptyItems(inventoryData.getMainInventory())).append(" items\n");
-        sb.append("  - Armor Inventory: ").append(InventoryManager.countNonEmptyItems(inventoryData.getArmorInventory())).append(" items\n");
-        sb.append("  - Offhand Inventory: ").append(InventoryManager.countNonEmptyItems(inventoryData.getOffhandInventory())).append(" items\n");
-        sb.append("  - Ender Inventory: ").append(InventoryManager.countNonEmptyItems(inventoryData.getEnderChest())).append(" items");
-        
-        DebugLogger.log(sb.toString(), Config.DebugVerbosity.DEFAULT);
-        
-        // For ALL verbosity, also log full inventory
-        DebugLogger.log("Full inventory data: \n" + GSON.toJson(inventoryData), Config.DebugVerbosity.ALL);
         
         // Create request payload with the new structure
         Map<String, Object> payload = new HashMap<>();
         payload.put("playerId", playerId.toString());
         payload.put("shopSlug", shopSlug);
-        
-        // Create inventories object with all inventory types
-        Map<String, Object> inventories = new HashMap<>();
-        inventories.put("mainInventory", inventoryData.getMainInventory());
-        inventories.put("armorInventory", inventoryData.getArmorInventory());
-        inventories.put("offhandInventory", inventoryData.getOffhandInventory());
-        inventories.put("enderChestInventory", inventoryData.getEnderChest());
         
         payload.put("inventories", inventories);
         
@@ -95,7 +74,7 @@ public class ApiService {
     /**
      * Finishes a shop session with the API
      */
-    public static CompletableFuture<ShopFinishResponse> finishShop(UUID processId, String playerName, String twoFactorCode) {
+    public static CompletableFuture<DataTypes.InventoryList> finishShop(UUID processId, String playerName, String twoFactorCode) {
         // Log checkout attempt
         DebugLogger.log("Player " + playerName + " checking out shop session", Config.DebugVerbosity.MINIMAL);
         DebugLogger.log("Player " + playerName + " checking out shop session: " + processId + " with code: " + twoFactorCode, Config.DebugVerbosity.DEFAULT);
@@ -120,17 +99,7 @@ public class ApiService {
                 .thenApply(response -> {
                     if (response.statusCode() == 200) {
                         DebugLogger.log("Received shop finish response: " + response.body(), Config.DebugVerbosity.ALL);
-                        ShopFinishResponse finishResponse = GSON.fromJson(response.body(), ShopFinishResponse.class);
-                        DebugLogger.log("Received checkout response", Config.DebugVerbosity.MINIMAL);
-                        StringBuilder sb = new StringBuilder();
-                        sb.append("Received checkout response for session ").append(processId).append("\n");
-                        sb.append("  - Main Inventory: ").append(InventoryManager.countNonEmptyItems(finishResponse.getInventoryData().getMainInventory())).append(" items\n");
-                        sb.append("  - Armor Inventory: ").append(InventoryManager.countNonEmptyItems(finishResponse.getInventoryData().getArmorInventory())).append(" items\n");
-                        sb.append("  - Offhand Inventory: ").append(InventoryManager.countNonEmptyItems(finishResponse.getInventoryData().getOffhandInventory())).append(" items\n");
-                        sb.append("  - Ender Inventory: ").append(InventoryManager.countNonEmptyItems(finishResponse.getInventoryData().getEnderChest())).append(" items");
-                        DebugLogger.log(sb.toString(), Config.DebugVerbosity.DEFAULT);
-                        DebugLogger.log("Full new inventory data: \n" + GSON.toJson(finishResponse.getInventoryData()), Config.DebugVerbosity.ALL);
-                        return finishResponse;
+                        return GSON.fromJson(response.body(), InventoryList.class);
                     } else {
                         String errorMsg = "Error from shop finish API: " + response.statusCode() + " - " + response.body();
                         DebugLogger.logError(errorMsg, null);

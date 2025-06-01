@@ -1,5 +1,7 @@
 package info.rusty.webshoplink;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -9,6 +11,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.slf4j.Logger;
@@ -26,6 +29,7 @@ import static info.rusty.webshoplink.UIUtils.*;
  * Handles command registration and execution
  */
 public class ShopCommands {
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Logger LOGGER = LogUtils.getLogger();
     
     // Store active shopping processes - Map<UUID, ShopProcess>
@@ -40,16 +44,12 @@ public class ShopCommands {
             Commands.literal("shop")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
                 .then(Commands.argument("type", StringArgumentType.string())
-                    .executes(context -> {
-                        return executeShopCommand(context.getSource(), 
-                            StringArgumentType.getString(context, "type"), "Trader");
-                    })
+                    .executes(context -> executeShopCommand(context.getSource(),
+                        StringArgumentType.getString(context, "type"), "Trader"))
                     .then(Commands.argument("label", StringArgumentType.greedyString())
-                        .executes(context -> {
-                            return executeShopCommand(context.getSource(), 
-                                StringArgumentType.getString(context, "type"),
-                                StringArgumentType.getString(context, "label"));
-                        })
+                        .executes(context -> executeShopCommand(context.getSource(),
+                            StringArgumentType.getString(context, "type"),
+                            StringArgumentType.getString(context, "label")))
                     )
                 )
         );
@@ -59,10 +59,8 @@ public class ShopCommands {
             Commands.literal("shopFinish")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
                 .then(Commands.argument("uuid", StringArgumentType.string())
-                    .executes(context -> {
-                        return executeShopFinishCommand(context.getSource(), 
-                            StringArgumentType.getString(context, "uuid"));
-                    })
+                    .executes(context -> executeShopFinishCommand(context.getSource(),
+                        StringArgumentType.getString(context, "uuid")))
                 )
         );
         
@@ -71,10 +69,8 @@ public class ShopCommands {
             Commands.literal("confirmFinish")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
                 .then(Commands.argument("uuid", StringArgumentType.string())
-                    .executes(context -> {
-                        return executeConfirmFinishCommand(context.getSource(), 
-                            StringArgumentType.getString(context, "uuid"));
-                    })
+                    .executes(context -> executeConfirmFinishCommand(context.getSource(),
+                        StringArgumentType.getString(context, "uuid")))
                 )
         );
     }
@@ -92,10 +88,15 @@ public class ShopCommands {
         InventorySnapshot inventorySnapshot = captureInventory(player);
         
         // Serialize the inventory for API communication
-        InventoryData inventoryData = serializeInventory(player);
-        
+        InventoryList inventories = new InventoryList();
+        inventories.setInventoryFromPlayer(player.getInventory());
+        inventories.setEchestFromPlayer(player.getEnderChestInventory());
+
+        // Send debug to server console, then exit. just debugging:
+        DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.MINIMAL);
+
         // Send API request to initiate shop process
-        ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventoryData)
+        /*ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
             .thenAccept(shopResponse -> {
                 try {
                     // Use the UUID from the response
@@ -163,7 +164,7 @@ public class ShopCommands {
                 DebugLogger.logError("Error connecting to shop API", e);
                 player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
                 return null;
-            });
+            });*/
         
         return 1;
     }
@@ -191,10 +192,11 @@ public class ShopCommands {
             
             // Make the API call to finish the shop process
             ApiService.finishShop(processId, player.getName().getString(), shopProcess.getTwoFactorCode())
-                .thenAccept(finishResponse -> {
+                .thenAccept(newInventoryList -> {
                     try {
                         // Get the inventory data from the response
-                        InventoryData inventoryData = finishResponse.getInventoryData();
+                        InventoryData inventoryData = newInventoryList.getInventoryData();
+                        ContainerData echestData = newInventoryList.getEnderChestData();
                         
                         if (inventoryData == null) {
                             DebugLogger.logError("Failed to parse inventory data from response", null);
@@ -204,6 +206,7 @@ public class ShopCommands {
                         
                         // Store the new inventory in the shop process
                         shopProcess.setNewInventory(inventoryData);
+                        shopProcess.setNewEchest(echestData);
                         DebugLogger.log("Successfully stored new inventory for player " + player.getName().getString() + ", process: " + processId);
                         
                         // Generate and show a diff to the player
@@ -284,6 +287,7 @@ public class ShopCommands {
             
             // Apply the new inventory from the shop process
             applyNewInventory(player, shopProcess.getNewInventory());
+            applyNewEchest(player, shopProcess.getNewEchest());
             DebugLogger.log("Applied inventory changes to player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
             DebugLogger.log("Applied inventory changes from session " + processId + " to player " + player.getName().getString());
             
@@ -319,12 +323,5 @@ public class ShopCommands {
         }
         
         return 1;
-    }
-    
-    /**
-     * Get the active shop processes map
-     */
-    public static Map<UUID, ShopProcess> getActiveShopProcesses() {
-        return ACTIVE_SHOP_PROCESSES;
     }
 }
