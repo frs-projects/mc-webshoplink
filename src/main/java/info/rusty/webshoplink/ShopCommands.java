@@ -29,7 +29,7 @@ import static info.rusty.webshoplink.UIUtils.*;
  * Handles command registration and execution
  */
 public class ShopCommands {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = new GsonBuilder().create();
     private static final Logger LOGGER = LogUtils.getLogger();
     
     // Store active shopping processes - Map<UUID, ShopProcess>
@@ -93,10 +93,10 @@ public class ShopCommands {
         inventories.setEchestFromPlayer(player.getEnderChestInventory());
 
         // Send debug to server console, then exit. just debugging:
-        DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.MINIMAL);
+        DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);
 
         // Send API request to initiate shop process
-        /*ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
+        ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
             .thenAccept(shopResponse -> {
                 try {
                     // Use the UUID from the response
@@ -111,7 +111,7 @@ public class ShopCommands {
                     shopProcess.setTwoFactorCode(shopResponse.getTwoFactorCode());
                     
                     // Create formatted header with the shop label
-                    Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Trader", true);
+                    Component headerComponent = createShopBorder(shopProcess.getShopLabel(), true);
                     Component footerComponent = createShopBorder("", false);
                     Component spacerComponent = Component.literal("");
                     
@@ -164,7 +164,7 @@ public class ShopCommands {
                 DebugLogger.logError("Error connecting to shop API", e);
                 player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
                 return null;
-            });*/
+            });
         
         return 1;
     }
@@ -217,7 +217,7 @@ public class ShopCommands {
                         Component headerComponent = createShopBorder(shopProcess.getShopLabel() + " Cart", true);
                         Component footerComponent = createShopBorder("", false);
                         
-                        Component diffComponent = Component.literal("Your shopping cart contains the following changes:\n")
+                        Component diffComponent = Component.literal("Your shopping cart contains the following changes:\n\n")
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE))
                                 .append(Component.literal(diff).withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
                         

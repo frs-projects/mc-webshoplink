@@ -171,7 +171,6 @@ public class DataTypes {
             if (playerInventory == null) return;
             
             this.inventory = new InventoryData();
-            ItemList itemList = new ItemList();
             Map<Integer, ItemData> itemMap = new java.util.HashMap<>();
             
             // Process main inventory
@@ -183,16 +182,14 @@ public class DataTypes {
                 }
             }
             
-            itemList.items = itemMap;
             this.inventory.size = playerInventory.getContainerSize();
-            this.inventory.items = itemList;
+            this.inventory.items = itemMap;
         }
 
         public void setEchestFromPlayer(Container playerEchest) {
             if (playerEchest == null) return;
             
             this.echest = new ContainerData();
-            ItemList itemList = new ItemList();
             Map<Integer, ItemData> itemMap = new java.util.HashMap<>();
             
             // Process ender chest inventory
@@ -204,9 +201,8 @@ public class DataTypes {
                 }
             }
             
-            itemList.items = itemMap;
             this.echest.size = playerEchest.getContainerSize();
-            this.echest.items = itemList;
+            this.echest.items = itemMap;
         }
         
         // Helper method to create ItemData from ItemStack
@@ -240,37 +236,33 @@ public class DataTypes {
 
     public static class InventoryData {
         private Integer size;
-        private ItemList items;
+        private Map<Integer, ItemData> items;
 
         public Integer getSize() {
             return size;
         }
 
-        public ItemList getItems() {
+        public Map<Integer, ItemData> getItems() {
             return items;
+        }
+        
+        public ItemData getItem(Integer index) {
+            return items.get(index);
         }
     }
 
     public static class ContainerData {
         private Integer size;
-        private ItemList items;
+        private Map<Integer, ItemData> items;
 
         public Integer getSize() {
             return size;
         }
 
-        public ItemList getItems() {
-            return items;
-        }
-    }
-
-    public static class ItemList {
-        private Map<Integer, ItemData> items;
-
         public Map<Integer, ItemData> getItems() {
             return items;
         }
-
+        
         public ItemData getItem(Integer index) {
             return items.get(index);
         }
