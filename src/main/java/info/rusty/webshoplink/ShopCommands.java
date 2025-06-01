@@ -74,15 +74,25 @@ public class ShopCommands {
                 )
         );
     }
-    
-    private static int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
+      private static int executeShopCommand(CommandSourceStack source, String shopSlug, String shopLabel) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.literal("This command can only be executed by a player"));
             return 0;
         }
         
+        // Limit the shop label length to prevent border underflow errors
+        // Ensure label will fit within the border (max length 40 to leave room for padding and spaces)
+        // Create a final copy of the potentially modified shopLabel for use in lambda
+        final String finalShopLabel;
+        if (shopLabel.length() > 40) {
+            finalShopLabel = shopLabel.substring(0, 40);
+            DebugLogger.log("Shop label truncated to 40 characters for player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+        } else {
+            finalShopLabel = shopLabel;
+        }
+        
         // Log command execution
-        DebugLogger.log("Player " + player.getName().getString() + " executed shop command with slug: " + shopSlug + ", label: " + shopLabel, Config.DebugVerbosity.MINIMAL);
+        DebugLogger.log("Player " + player.getName().getString() + " executed shop command with slug: " + shopSlug + ", label: " + finalShopLabel, Config.DebugVerbosity.MINIMAL);
         
         // Capture the player's current inventory for later verification
         InventorySnapshot inventorySnapshot = captureInventory(player);
@@ -93,9 +103,7 @@ public class ShopCommands {
         inventories.setEchestFromPlayer(player.getEnderChestInventory());
 
         // Send debug to server console, then exit. just debugging:
-        DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);
-
-        // Send API request to initiate shop process
+        DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);        // Send API request to initiate shop process
         ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
             .thenAccept(shopResponse -> {
                 try {
@@ -103,7 +111,7 @@ public class ShopCommands {
                     UUID processId = UUID.fromString(shopResponse.getUuid());
                     
                     // Create a shop process and save the player's current inventory
-                    ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot, shopLabel);
+                    ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot, finalShopLabel);
                     ACTIVE_SHOP_PROCESSES.put(processId, shopProcess);
                     
                     // Store the response data in the shop process
