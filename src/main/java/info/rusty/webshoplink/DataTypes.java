@@ -168,11 +168,73 @@ public class DataTypes {
         }
 
         public void setInventoryFromPlayer(Inventory playerInventory) {
-            // TODO
+            if (playerInventory == null) return;
+            
+            this.inventory = new InventoryData();
+            ItemList itemList = new ItemList();
+            Map<Integer, ItemData> itemMap = new java.util.HashMap<>();
+            
+            // Process main inventory
+            for (int i = 0; i < playerInventory.getContainerSize(); i++) {
+                ItemStack stack = playerInventory.getItem(i);
+                if (!stack.isEmpty()) {
+                    ItemData itemData = createItemData(stack);
+                    itemMap.put(i, itemData);
+                }
+            }
+            
+            itemList.items = itemMap;
+            this.inventory.size = playerInventory.getContainerSize();
+            this.inventory.items = itemList;
         }
 
         public void setEchestFromPlayer(Container playerEchest) {
-            // TODO
+            if (playerEchest == null) return;
+            
+            this.echest = new ContainerData();
+            ItemList itemList = new ItemList();
+            Map<Integer, ItemData> itemMap = new java.util.HashMap<>();
+            
+            // Process ender chest inventory
+            for (int i = 0; i < playerEchest.getContainerSize(); i++) {
+                ItemStack stack = playerEchest.getItem(i);
+                if (!stack.isEmpty()) {
+                    ItemData itemData = createItemData(stack);
+                    itemMap.put(i, itemData);
+                }
+            }
+            
+            itemList.items = itemMap;
+            this.echest.size = playerEchest.getContainerSize();
+            this.echest.items = itemList;
+        }
+        
+        // Helper method to create ItemData from ItemStack
+        private ItemData createItemData(ItemStack stack) {
+            ItemData itemData = new ItemData();            // Use reflection to set private fields since we don't have direct setters
+            try {
+                java.lang.reflect.Field itemIdField = ItemData.class.getDeclaredField("itemId");
+                java.lang.reflect.Field countField = ItemData.class.getDeclaredField("count");
+                java.lang.reflect.Field nbtField = ItemData.class.getDeclaredField("nbt");
+                
+                itemIdField.setAccessible(true);
+                countField.setAccessible(true);
+                nbtField.setAccessible(true);
+                
+                // Get the id of the item using built-in Minecraft method
+                net.minecraft.resources.ResourceLocation itemKey = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
+                itemIdField.set(itemData, itemKey.toString());
+                countField.set(itemData, stack.getCount());
+                
+                // Convert NBT data to string if present
+                if (stack.hasTag()) {
+                    nbtField.set(itemData, stack.getTag().toString());
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error creating ItemData from ItemStack", e);
+            }
+            
+            return itemData;
         }
     }
 
@@ -230,10 +292,42 @@ public class DataTypes {
         public String getNbt() {
             return nbt;
         }
-
+        
         public ItemStack getItemStackData() {
-            // TODO
-            return null;
+            try {
+                // Parse the item id to get the correct item
+                String[] parts = itemId.split(":", 2);
+                if (parts.length != 2) {
+                    LOGGER.error("Invalid item ID format: {}", itemId);
+                    return ItemStack.EMPTY;
+                }
+                
+                net.minecraft.resources.ResourceLocation resourceLocation = new net.minecraft.resources.ResourceLocation(parts[0], parts[1]);
+                net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(resourceLocation);
+                
+                if (item == net.minecraft.world.item.Items.AIR) {
+                    LOGGER.error("Could not find item with ID: {}", itemId);
+                    return ItemStack.EMPTY;
+                }
+                
+                // Create the item stack with the correct count
+                ItemStack stack = new ItemStack(item, count != null ? count : 1);
+                
+                // If NBT data is present, try to parse and apply it
+                if (nbt != null && !nbt.isEmpty()) {
+                    try {
+                        net.minecraft.nbt.CompoundTag nbtData = net.minecraft.nbt.TagParser.parseTag(nbt);
+                        stack.setTag(nbtData);
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to parse NBT data for item {}: {}", itemId, e.getMessage());
+                    }
+                }
+                
+                return stack;
+            } catch (Exception e) {
+                LOGGER.error("Error creating ItemStack from ItemData: {}", e.getMessage());
+                return ItemStack.EMPTY;
+            }
         }
     }
 }
