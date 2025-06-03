@@ -102,8 +102,7 @@ public class NbtSerializer {
         
         return jsonArray;
     }
-    
-    /**
+      /**
      * TypeAdapter for CompoundTag to use with Gson
      */
     public static class CompoundTagAdapter implements JsonSerializer<CompoundTag>, JsonDeserializer<CompoundTag> {
@@ -121,7 +120,7 @@ public class NbtSerializer {
             }
         }
         
-        private CompoundTag parseJsonToCompoundTag(JsonObject jsonObject) {
+        public static CompoundTag parseJsonToCompoundTag(JsonObject jsonObject) {
             CompoundTag tag = new CompoundTag();
             
             for (Map.Entry<String, JsonElement> entry : jsonObject.entrySet()) {
@@ -156,11 +155,10 @@ public class NbtSerializer {
                     }
                 }
             }
-            
-            return tag;
+              return tag;
         }
         
-        private ListTag parseJsonToListTag(JsonArray jsonArray) {
+        public static ListTag parseJsonToListTag(JsonArray jsonArray) {
             if (jsonArray.size() == 0) {
                 return new ListTag();
             }

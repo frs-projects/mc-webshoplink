@@ -2,6 +2,7 @@ package info.rusty.webshoplink;
 
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
@@ -417,6 +418,8 @@ public class InventoryManager {
                     itemData.getItemId() + " x" + itemData.getCount(), Config.DebugVerbosity.DEFAULT);
             if (itemData.getNbt() != null) {
                 DebugLogger.log("New item has NBT: " + itemData.getNbt(), Config.DebugVerbosity.DEFAULT);
+                // Add enhanced NBT debugging
+                NbtDebugUtils.logJsonNbt(itemData.getNbt(), "New item NBT");
             }
             return;
         }
@@ -433,6 +436,7 @@ public class InventoryManager {
         
         // Both have items, compare them
         String currentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(current.getItem()).toString();
+        
         DebugLogger.log(slotType + " slot " + slotIndex + ": Comparing items", Config.DebugVerbosity.DEFAULT);
         DebugLogger.log("Current: " + currentId + " x" + current.getCount(), Config.DebugVerbosity.DEFAULT);
         DebugLogger.log("New: " + itemData.getItemId() + " x" + itemData.getCount(), Config.DebugVerbosity.DEFAULT);
@@ -450,7 +454,8 @@ public class InventoryManager {
         if (current.hasTag() && itemData.getNbt() != null) {
             DebugLogger.log("Both items have NBT data, comparing...", Config.DebugVerbosity.DEFAULT);
             NbtDebugUtils.logItemStackNbt(current, "Current item");
-            DebugLogger.log("New item NBT JSON: " + itemData.getNbt().toString(), Config.DebugVerbosity.DEFAULT);
+            // Use our enhanced NBT debugging
+            NbtDebugUtils.logJsonNbt(itemData.getNbt(), "New item from API");
             
             // Convert current NBT to JSON for comparison
             JsonObject currentNbtJson = (JsonObject) NbtSerializer.serializeNbt(current.getTag());
@@ -460,13 +465,27 @@ public class InventoryManager {
                 DebugLogger.log("NBT data matches!", Config.DebugVerbosity.DEFAULT);
             } else {
                 DebugLogger.log("NBT data differs!", Config.DebugVerbosity.DEFAULT);
+                // Check what would happen if we apply the new NBT
+                ItemStack testStack = current.copy();
+                try {
+                    CompoundTag testNbt = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(itemData.getNbt());
+                    testStack.setTag(testNbt);
+                    NbtDebugUtils.logItemStackNbt(testStack, "Test applying new NBT");
+                    
+                    // Compare original item to test item
+                    boolean wouldMatch = testStack.getTag().equals(current.getTag());
+                    DebugLogger.log("After applying new NBT data, items would " + 
+                        (wouldMatch ? "MATCH" : "STILL DIFFER"), Config.DebugVerbosity.DEFAULT);
+                } catch (Exception e) {
+                    DebugLogger.logError("Failed to apply test NBT: " + e.getMessage(), e);
+                }
             }
         } else if (current.hasTag()) {
             DebugLogger.log("Current item has NBT but new item doesn't", Config.DebugVerbosity.DEFAULT);
             NbtDebugUtils.logItemStackNbt(current, "Current item");
         } else if (itemData.getNbt() != null) {
             DebugLogger.log("New item has NBT but current doesn't", Config.DebugVerbosity.DEFAULT);
-            DebugLogger.log("New item NBT JSON: " + itemData.getNbt().toString(), Config.DebugVerbosity.DEFAULT);
+            NbtDebugUtils.logJsonNbt(itemData.getNbt(), "New item NBT");
         } else {
             DebugLogger.log("Neither item has NBT data", Config.DebugVerbosity.DEFAULT);
         }

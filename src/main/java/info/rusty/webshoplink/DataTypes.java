@@ -1,6 +1,7 @@
 package info.rusty.webshoplink;
 
 import com.google.gson.JsonObject;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -224,9 +225,30 @@ public class DataTypes {
                 
                 // Convert NBT data to a proper JSON structure if present
                 if (stack.hasTag()) {
+                    // Log the original NBT
+                    DebugLogger.log("Serializing NBT for item " + itemKey.toString(), Config.DebugVerbosity.DEFAULT);
+                    NbtDebugUtils.logItemStackNbt(stack, "Original item before serialization");
+                    
                     // Use our custom NBT serializer to convert to JsonObject
                     JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(stack.getTag());
                     nbtField.set(itemData, nbtJson);
+                    
+                    // Log the serialized NBT JSON
+                    DebugLogger.log("Serialized NBT to JSON for item " + itemKey.toString(), Config.DebugVerbosity.DEFAULT);
+                    NbtDebugUtils.logJsonNbt(nbtJson, "Serialized NBT JSON");
+                    
+                    // Test round-trip conversion
+                    try {
+                        CompoundTag roundTrip = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(nbtJson);
+                        boolean tagsEqual = roundTrip.equals(stack.getTag());
+                        DebugLogger.log("Round-trip NBT conversion test: " + (tagsEqual ? "PASSED" : "FAILED"), Config.DebugVerbosity.DEFAULT);
+                        if (!tagsEqual) {
+                            DebugLogger.log("Original tag: " + stack.getTag(), Config.DebugVerbosity.DEFAULT);
+                            DebugLogger.log("Round-trip tag: " + roundTrip, Config.DebugVerbosity.DEFAULT);
+                        }
+                    } catch (Exception e) {
+                        DebugLogger.logError("Failed round-trip NBT test: " + e.getMessage(), e);
+                    }
                 }
             } catch (Exception e) {
                 LOGGER.error("Error creating ItemData from ItemStack", e);
@@ -308,11 +330,20 @@ public class DataTypes {
                 // If NBT data is present, try to parse and apply it
                 if (nbt != null) {
                     try {
-                        // Convert JsonObject back to CompoundTag
-                        net.minecraft.nbt.CompoundTag nbtData = new com.google.gson.Gson().fromJson(nbt.toString(), net.minecraft.nbt.CompoundTag.class);
+                        // Log the NBT JSON before conversion for debugging
+                        DebugLogger.log("Converting NBT JSON to CompoundTag for item " + itemId, Config.DebugVerbosity.DEFAULT);
+                        NbtDebugUtils.logJsonNbt(nbt, "Pre-conversion NBT JSON");
+                        
+                        // Use the NbtSerializer to properly convert the JsonObject to a CompoundTag
+                        CompoundTag nbtData = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(nbt);
                         stack.setTag(nbtData);
+                        
+                        // Log for debugging
+                        DebugLogger.log("Applied NBT data to item " + itemId + ": " + nbtData, Config.DebugVerbosity.DEFAULT);
+                        NbtDebugUtils.logItemStackNbt(stack, "Post-application ItemStack");
                     } catch (Exception e) {
                         LOGGER.error("Failed to parse NBT data for item {}: {}", itemId, e.getMessage());
+                        e.printStackTrace(); // Add stack trace for better debugging
                     }
                 }
                 
