@@ -15,13 +15,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.minecraft.nbt.CompoundTag;
 
 /**
  * Handles all API communication for the Webshoplink mod.
  */
-public class ApiService {
-    private static final Logger LOGGER = LogUtils.getLogger();
-    private static final Gson GSON = new GsonBuilder().create();
+public class ApiService {    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final Gson GSON = new GsonBuilder()
+            .registerTypeAdapter(CompoundTag.class, new NbtSerializer.CompoundTagAdapter())
+            .create();
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_2)
             .connectTimeout(Duration.ofSeconds(10))

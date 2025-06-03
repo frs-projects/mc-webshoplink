@@ -1,5 +1,6 @@
 package info.rusty.webshoplink;
 
+import com.google.gson.JsonObject;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -204,10 +205,9 @@ public class DataTypes {
             this.echest.size = playerEchest.getContainerSize();
             this.echest.items = itemMap;
         }
-        
-        // Helper method to create ItemData from ItemStack
+          // Helper method to create ItemData from ItemStack
         private ItemData createItemData(ItemStack stack) {
-            ItemData itemData = new ItemData();            // Use reflection to set private fields since we don't have direct setters
+            ItemData itemData = new ItemData();            
             try {
                 java.lang.reflect.Field itemIdField = ItemData.class.getDeclaredField("itemId");
                 java.lang.reflect.Field countField = ItemData.class.getDeclaredField("count");
@@ -222,9 +222,11 @@ public class DataTypes {
                 itemIdField.set(itemData, itemKey.toString());
                 countField.set(itemData, stack.getCount());
                 
-                // Convert NBT data to string if present
+                // Convert NBT data to a proper JSON structure if present
                 if (stack.hasTag()) {
-                    nbtField.set(itemData, stack.getTag().toString());
+                    // Use our custom NBT serializer to convert to JsonObject
+                    JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(stack.getTag());
+                    nbtField.set(itemData, nbtJson);
                 }
             } catch (Exception e) {
                 LOGGER.error("Error creating ItemData from ItemStack", e);
@@ -266,12 +268,10 @@ public class DataTypes {
         public ItemData getItem(Integer index) {
             return items.get(index);
         }
-    }
-
-    public static class ItemData {
+    }    public static class ItemData {
         private String itemId;
         private Integer count;
-        private String nbt;
+        private JsonObject nbt;
 
         public String getItemId() {
             return itemId;
@@ -281,7 +281,7 @@ public class DataTypes {
             return count;
         }
 
-        public String getNbt() {
+        public JsonObject getNbt() {
             return nbt;
         }
         
@@ -306,9 +306,10 @@ public class DataTypes {
                 ItemStack stack = new ItemStack(item, count != null ? count : 1);
                 
                 // If NBT data is present, try to parse and apply it
-                if (nbt != null && !nbt.isEmpty()) {
+                if (nbt != null) {
                     try {
-                        net.minecraft.nbt.CompoundTag nbtData = net.minecraft.nbt.TagParser.parseTag(nbt);
+                        // Convert JsonObject back to CompoundTag
+                        net.minecraft.nbt.CompoundTag nbtData = new com.google.gson.Gson().fromJson(nbt.toString(), net.minecraft.nbt.CompoundTag.class);
                         stack.setTag(nbtData);
                     } catch (Exception e) {
                         LOGGER.error("Failed to parse NBT data for item {}: {}", itemId, e.getMessage());
