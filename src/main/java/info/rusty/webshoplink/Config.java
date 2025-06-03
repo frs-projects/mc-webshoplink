@@ -28,11 +28,11 @@ public class Config {
 
     private static final ForgeConfigSpec.ConfigValue<String> SHOP_CHECKOUT_ENDPOINT = BUILDER
             .comment("Endpoint for checking out shop processes")
-            .define("shopCheckoutEndpoint", "/checkout/{uuid}");
+            .define("shopCheckoutEndpoint", "/{uuid}/checkout");
             
     private static final ForgeConfigSpec.ConfigValue<String> SHOP_APPLIED_ENDPOINT = BUILDER
             .comment("Endpoint for marking shop processes as applied")
-            .define("shopAppliedEndpoint", "/applied/{uuid}");
+            .define("shopAppliedEndpoint", "/{uuid}/setApplied");
             
     // Money Items configuration
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> MONEY_ITEMS = BUILDER
