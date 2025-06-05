@@ -101,15 +101,33 @@ public class ShopCommands {
         // Serialize the inventory for API communication
         InventoryList inventories = new InventoryList();
         inventories.setInventoryFromPlayer(player.getInventory());
-        inventories.setEchestFromPlayer(player.getEnderChestInventory());
-
-        // Send debug to server console, then exit. just debugging:
+        inventories.setEchestFromPlayer(player.getEnderChestInventory());        // Send debug to server console, then exit. just debugging:
         DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);        // Send API request to initiate shop process
         ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
             .thenAccept(shopResponse -> {
                 try {
+                    // Check if there was an error in the response
+                    if (shopResponse.hasError()) {
+                        DebugLogger.log("Error received from shop API: " + shopResponse.getErrorMessage(), Config.DebugVerbosity.MINIMAL);
+                        
+                        // Create a new ErrorResponse to get user-friendly messages
+                        ErrorResponse errorResponse = new ErrorResponse(shopResponse.getErrorMessage(), 0);
+                        
+                        // Display formatted error message to player
+                        displayErrorMessage(player, errorResponse);
+                        return;
+                    }
+                    
                     // Use the UUID from the response
-                    UUID processId = UUID.fromString(shopResponse.getUuid());
+                    UUID processId;
+                    try {
+                        processId = UUID.fromString(shopResponse.getUuid());
+                    } catch (IllegalArgumentException e) {
+                        DebugLogger.logError("Invalid UUID format in shop response: " + shopResponse.getUuid(), e);
+                        ErrorResponse errorResponse = new ErrorResponse("Invalid UUID format in shop response", 0);
+                        displayErrorMessage(player, errorResponse);
+                        return;
+                    }
                     
                     // Create a shop process and save the player's current inventory
                     ShopProcess shopProcess = new ShopProcess(player.getUUID(), processId, inventorySnapshot, finalShopLabel);
@@ -163,15 +181,20 @@ public class ShopCommands {
                         player.sendSystemMessage(Component.literal("Removed " + removedItems + " money items from your Inventory and Ender Chest.")
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
                         DebugLogger.log("Removed " + removedItems + " money items from player " + player.getName().getString());
-                    }
-                } catch (Exception e) {
+                    }                } catch (Exception e) {
                     DebugLogger.logError("Error processing shop response", e);
-                    player.sendSystemMessage(Component.literal("Error processing shop response. Please try again later."));
+                    
+                    // Create a formatted error message
+                    ErrorResponse errorResponse = new ErrorResponse("Error processing shop response: " + e.getMessage(), 0);
+                    displayErrorMessage(player, errorResponse);
                 }
-            })
-            .exceptionally(e -> {
+            }).exceptionally(e -> {
                 DebugLogger.logError("Error connecting to shop API", e);
-                player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
+                
+                // Create an ErrorResponse for connection errors and display to player
+                ErrorResponse errorResponse = new ErrorResponse("Failed to connect to shop server", 0);
+                displayErrorMessage(player, errorResponse);
+                
                 return null;
             });
         
@@ -209,7 +232,10 @@ public class ShopCommands {
                         
                         if (inventoryData == null) {
                             DebugLogger.logError("Failed to parse inventory data from response", null);
-                            player.sendSystemMessage(Component.literal("Error processing shop finish response. Please try again later."));
+                            
+                            // Use our utility method to display an error
+                            ErrorResponse errorResponse = new ErrorResponse("Failed to parse inventory data from response", 0);
+                            displayErrorMessage(player, errorResponse);
                             return;
                         }
                         
@@ -289,19 +315,27 @@ public class ShopCommands {
                                 .append(Component.literal(" <<<<").withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
 
                         player.sendSystemMessage(headerComponent); // Remove this if the diff is enabled again
-                        player.sendSystemMessage(confirmComponent);
-                        player.sendSystemMessage(footerComponent);
-                        player.sendSystemMessage(spacerComponent);
-
-                        
-                    } catch (Exception e) {
+                        player.sendSystemMessage(confirmComponent);                        player.sendSystemMessage(footerComponent);
+                        player.sendSystemMessage(spacerComponent);                    } catch (Exception e) {
                         DebugLogger.logError("Error processing shop finish response", e);
-                        player.sendSystemMessage(Component.literal("Error processing shop finish response. Please try again later."));
+                        
+                        // Create an ErrorResponse for the exception
+                        ErrorResponse errorResponse = new ErrorResponse("Error processing shop checkout: " + e.getMessage(), 0);
+                        displayErrorMessage(player, errorResponse);
                     }
-                })
-                .exceptionally(e -> {
-                    DebugLogger.logError("Error connecting to shop finish API", e);
-                    player.sendSystemMessage(Component.literal("Error connecting to shop. Please try again later."));
+                }).exceptionally(e -> {
+                    Throwable cause = e.getCause();
+                    DebugLogger.logError("Error during shop finish", cause);
+                    
+                    // Different message depending on the error type
+                    if (cause instanceof ErrorResponse) {
+                        ErrorResponse error = (ErrorResponse) cause;
+                        displayErrorMessage(player, error);
+                    } else {
+                        // Generic connection error
+                        displayConnectionError(player, "Failed to connect to shop server.");
+                    }
+                    
                     return null;
                 });
             
@@ -339,46 +373,39 @@ public class ShopCommands {
                 player.sendSystemMessage(Component.literal("Your inventory has changed since starting the shop process. Purchase cancelled."));
                 ACTIVE_SHOP_PROCESSES.remove(processId);
                 return 0;
-            }
-              // First notify the API that the changes will be applied and wait for confirmation
+            }            // First notify the API that the changes will be applied and wait for confirmation
             ApiService.notifyChangesApplied(processId, shopProcess.getTwoFactorCode())
                 .thenAccept(success -> {
-                    if (success) {
-                        // Only apply the inventory changes if the API confirms the transaction
-                        applyNewInventory(player, shopProcess.getNewInventory());
-                        applyNewEchest(player, shopProcess.getNewEchest());
-                        DebugLogger.log("Applied inventory changes to player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
-                        DebugLogger.log("Applied inventory changes from session " + processId + " to player " + player.getName().getString());
-
-                        // Only show success message after API confirmation and inventory update
-                        Component spacerComponent = Component.literal("");
-                        Component headerComponent = createShopBorder(shopProcess.getShopLabel(), true);
-                        Component successComponent = Component.literal("Purchase completed successfully!")
-                                .withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN));
-                        Component footerComponent = createShopBorder("", false);
-                        
-                        player.sendSystemMessage(spacerComponent);
-                        player.sendSystemMessage(headerComponent);
-                        player.sendSystemMessage(successComponent);
-                        player.sendSystemMessage(footerComponent);
-                        player.sendSystemMessage(spacerComponent);
-                        
-                        // Log completion
-                        DebugLogger.log("Purchase completed successfully for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.MINIMAL);
-                        
-                        // Remove the completed shop process
-                        ACTIVE_SHOP_PROCESSES.remove(processId);
+                    // The API has confirmed the transaction and notifyChangesApplied now only returns true
+                    // (errors are thrown as exceptions and handled in the exceptionally block)
+                    
+                    // Apply the inventory changes 
+                    applyNewInventory(player, shopProcess.getNewInventory());
+                    applyNewEchest(player, shopProcess.getNewEchest());
+                    DebugLogger.log("Applied inventory changes to player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+                    DebugLogger.log("Applied inventory changes from session " + processId + " to player " + player.getName().getString());
+                    
+                    // Display success message using utility method
+                    displaySuccessMessage(player, shopProcess.getShopLabel(), "Purchase completed successfully!");
+                    
+                    // Log completion
+                    DebugLogger.log("Purchase completed successfully for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.MINIMAL);
+                    
+                    // Remove the completed shop process
+                    ACTIVE_SHOP_PROCESSES.remove(processId);
+                }).exceptionally(e -> {
+                    Throwable cause = e.getCause();
+                    DebugLogger.logError("Error during shop purchase confirmation", cause);
+                    
+                    // Different message depending on the error type
+                    if (cause instanceof ErrorResponse) {
+                        ErrorResponse error = (ErrorResponse) cause;
+                        displayErrorMessage(player, error);
                     } else {
-                        // If API verification fails, inform the player
-                        player.sendSystemMessage(Component.literal("Purchase verification failed. Please try again later.")
-                                .withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
-                        DebugLogger.logError("API verification failed for process: " + processId, null);
+                        // Generic connection error
+                        displayConnectionError(player, "Failed to connect to shop server.");
                     }
-                })
-                .exceptionally(e -> {
-                    DebugLogger.logError("Error notifying API of applied changes", e);
-                    player.sendSystemMessage(Component.literal("Error completing purchase. Please try again later.")
-                            .withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+                    
                     return null;
                 });
         } catch (IllegalArgumentException e) {

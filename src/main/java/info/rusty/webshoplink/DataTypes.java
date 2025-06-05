@@ -126,6 +126,7 @@ public class DataTypes {
         private String uuid;
         private String link;
         private String twoFactorCode;
+        private String errorMessage;
         
         public String getUuid() {
             return uuid;
@@ -149,6 +150,18 @@ public class DataTypes {
         
         public void setTwoFactorCode(String twoFactorCode) {
             this.twoFactorCode = twoFactorCode;
+        }
+        
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+        
+        public void setErrorMessage(String errorMessage) {
+            this.errorMessage = errorMessage;
+        }
+        
+        public boolean hasError() {
+            return errorMessage != null && !errorMessage.isEmpty();
         }
     }
 

@@ -20,7 +20,8 @@ import net.minecraft.nbt.CompoundTag;
 /**
  * Handles all API communication for the Webshoplink mod.
  */
-public class ApiService {    private static final Logger LOGGER = LogUtils.getLogger();
+public class ApiService {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder()
             .registerTypeAdapter(CompoundTag.class, new NbtSerializer.CompoundTagAdapter())
             .create();
@@ -58,18 +59,64 @@ public class ApiService {    private static final Logger LOGGER = LogUtils.getLo
                     if (response.statusCode() == 200) {
                         DebugLogger.log("Received successful response: " + response.body(), Config.DebugVerbosity.DEFAULT);
                         ShopResponse shopResponse = GSON.fromJson(response.body(), ShopResponse.class);
+                        
+                        // Validate the UUID in the response
+                        if (shopResponse.getUuid() == null || shopResponse.getUuid().isEmpty()) {
+                            DebugLogger.logError("Invalid response: Missing UUID in shop response", null);
+                            shopResponse.setErrorMessage("Invalid response: Missing UUID in shop response");
+                            return shopResponse;
+                        }
+                        
+                        // Validate the link in the response
+                        if (shopResponse.getLink() == null || shopResponse.getLink().isEmpty()) {
+                            DebugLogger.logError("Invalid response: Missing link in shop response", null);
+                            shopResponse.setErrorMessage("Invalid response: Missing link in shop response");
+                            return shopResponse;
+                        }
+                        
                         DebugLogger.log("Shop session initiated", Config.DebugVerbosity.MINIMAL);
                         DebugLogger.log("Session UUID from server: " + shopResponse.getUuid(), Config.DebugVerbosity.DEFAULT);
                         return shopResponse;
                     } else {
                         String errorMsg = "Error from shop API: " + response.statusCode() + " - " + response.body();
                         DebugLogger.logError(errorMsg, null);
-                        throw new RuntimeException("API error: " + response.statusCode());
+                        
+                        // Try to parse error message from response body
+                        ShopResponse errorResponse = new ShopResponse();
+                        
+                        try {
+                            // First try parsing as ShopResponse directly
+                            errorResponse = GSON.fromJson(response.body(), ShopResponse.class);
+                            
+                            // If error message is null, try parsing as error object with message field
+                            if (errorResponse.getErrorMessage() == null) {
+                                Map<String, String> errorMap = GSON.fromJson(response.body(), Map.class);
+                                if (errorMap.containsKey("message") || errorMap.containsKey("error")) {
+                                    String message = errorMap.getOrDefault("message", 
+                                                    errorMap.getOrDefault("error", "Unknown error"));
+                                    errorResponse.setErrorMessage(message);
+                                    DebugLogger.log("Parsed error message: " + message, Config.DebugVerbosity.DEFAULT);
+                                } else {
+                                    errorResponse.setErrorMessage("API error: " + response.statusCode());
+                                }
+                            }
+                        } catch (Exception e) {
+                            // If parsing fails, create a generic error message
+                            DebugLogger.logError("Failed to parse error response: " + e.getMessage(), e);
+                            errorResponse.setErrorMessage("API error: " + response.statusCode() + " - " + response.body());
+                        }
+                        
+                        return errorResponse;
                     }
-                })
-                .exceptionally(ex -> {
+                }).exceptionally(ex -> {
                     DebugLogger.logError("Exception during API call", ex);
-                    throw new RuntimeException("API communication error", ex);
+                    ShopResponse errorResponse = new ShopResponse();
+                    if (ex.getCause() != null) {
+                        errorResponse.setErrorMessage("Communication error: " + ex.getCause().getMessage());
+                    } else {
+                        errorResponse.setErrorMessage("Communication error: Failed to connect to shop server");
+                    }
+                    return errorResponse;
                 });
     }
     
@@ -95,22 +142,41 @@ public class ApiService {    private static final Logger LOGGER = LogUtils.getLo
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                .build();
-          // Process the request asynchronously
+                .build();          // Process the request asynchronously
         return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
                     if (response.statusCode() == 200) {
                         DebugLogger.log("Received shop finish response: " + response.body(), Config.DebugVerbosity.ALL);
                         return GSON.fromJson(response.body(), InventoryList.class);
                     } else {
-                        String errorMsg = "Error from shop finish API: " + response.statusCode() + " - " + response.body();
+                        String errorMsg;
+                          // Try to parse error message from response body
+                        try {
+                            Map<String, String> errorMap = GSON.fromJson(response.body(), Map.class);
+                            if (errorMap.containsKey("message") || errorMap.containsKey("error")) {
+                                errorMsg = errorMap.getOrDefault("message", 
+                                        errorMap.getOrDefault("error", "Unknown error"));
+                                DebugLogger.log("Parsed error message from finishShop: " + errorMsg, Config.DebugVerbosity.DEFAULT);
+                            } else {
+                                errorMsg = "API error: " + response.statusCode() + " - " + response.body();
+                            }
+                        } catch (Exception e) {
+                            // If parsing fails, use a generic error message
+                            DebugLogger.logError("Error parsing response in finishShop: " + e.getMessage(), e);
+                            errorMsg = "Error from shop finish API: " + response.statusCode() + " - " + response.body();
+                        }
+                        
                         DebugLogger.logError(errorMsg, null);
-                        throw new RuntimeException("API error: " + response.statusCode());
+                        throw new ErrorResponse(errorMsg, response.statusCode());
                     }
-                })
-                .exceptionally(ex -> {
+                }).exceptionally(ex -> {
+                    if (ex.getCause() instanceof ErrorResponse) {
+                        // Just rethrow if it's already our custom error
+                        throw (ErrorResponse) ex.getCause();
+                    }
+                    
                     DebugLogger.logError("Exception during checkout API call", ex);
-                    throw new RuntimeException("API communication error", ex);
+                    throw new ErrorResponse("API communication error: Failed to connect to shop server", 0);
                 });
     }
       /**
@@ -139,11 +205,28 @@ public class ApiService {    private static final Logger LOGGER = LogUtils.getLo
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
           // Process the request asynchronously and wait for response to validate
-        return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
+        return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())                .thenApply(response -> {
                     if (response.statusCode() != 200) {
-                        DebugLogger.logError("Error notifying changes applied: " + response.statusCode() + " - " + response.body(), null);
-                        return false;
+                        String errorMsg;
+                        
+                        // Try to parse error message from response body                        // Try to parse error message from response body
+                        try {
+                            Map<String, String> errorMap = GSON.fromJson(response.body(), Map.class);
+                            if (errorMap.containsKey("message") || errorMap.containsKey("error")) {
+                                errorMsg = errorMap.getOrDefault("message", 
+                                        errorMap.getOrDefault("error", "Unknown error"));
+                                DebugLogger.log("Parsed error message from notifyChangesApplied: " + errorMsg, Config.DebugVerbosity.DEFAULT);
+                            } else {
+                                errorMsg = "API error: " + response.statusCode() + " - " + response.body();
+                            }
+                        } catch (Exception e) {
+                            // If parsing fails, use a generic error message
+                            DebugLogger.logError("Error parsing response in notifyChangesApplied: " + e.getMessage(), e);
+                            errorMsg = "Error from API: " + response.statusCode() + " - " + response.body();
+                        }
+                        
+                        DebugLogger.logError("Error notifying changes applied: " + errorMsg, null);
+                        throw new ErrorResponse(errorMsg, response.statusCode());
                     } else {
                         DebugLogger.log("Successfully notified changes applied, response: " + response.body(), Config.DebugVerbosity.DEFAULT);
                         // Parse the response to verify the expected message
@@ -155,17 +238,21 @@ public class ApiService {    private static final Logger LOGGER = LogUtils.getLo
                                 return true;
                             } else {
                                 DebugLogger.logError("Unexpected response message: " + message, null);
-                                return false;
+                                throw new ErrorResponse("Unexpected response: " + message, response.statusCode());
                             }
                         } catch (Exception e) {
                             DebugLogger.logError("Error parsing response: " + response.body(), e);
-                            return false;
+                            throw new ErrorResponse("Error parsing response: " + e.getMessage(), response.statusCode());
                         }
                     }
-                })
-                .exceptionally(ex -> {
+                }).exceptionally(ex -> {
+                    if (ex.getCause() instanceof ErrorResponse) {
+                        // Just rethrow if it's already our custom error
+                        throw (ErrorResponse) ex.getCause();
+                    }
+                    
                     DebugLogger.logError("Exception during notification API call", ex);
-                    return false;
+                    throw new ErrorResponse("API communication error: Failed to connect to shop server", 0);
                 });
     }
 }
