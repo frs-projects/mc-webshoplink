@@ -217,18 +217,20 @@ public class ShopCommands {
                         shopProcess.setNewInventory(inventoryData);
                         shopProcess.setNewEchest(echestData);
                         DebugLogger.log("Successfully stored new inventory for player " + player.getName().getString() + ", process: " + processId);
-                        
+
+                        // Create the confirmation message with a clickable button
+                        Component spacerComponent = Component.literal("");
+                        Component headerComponent = createShopBorder("Confirm Checkout", true);
+                        Component footerComponent = createShopBorder("", false);
+
+                        /* Disable diff display @2025.06.04 - 10:34AM
+
                         // Generate and show a diff to the player
                         InventoryDiff diff = generateInventoryDiff(shopProcess.getOriginalInventory(), inventoryData, echestData);
                         
-                        // Create the confirmation message with a clickable button
-                        Component spacerComponent = Component.literal("");
-                        Component headerComponent = createShopBorder("Cart", true);
-                        Component footerComponent = createShopBorder("", false);
-                        
                         Component diffIntroComponent = Component.literal("Your shopping cart contains the following changes:\n")
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.WHITE));
-                        
+
                         // Display removed items in red
                         if (!diff.getRemoved().isEmpty()) {
                             Component removedHeaderComponent = Component.literal("\nRemoved items:")
@@ -273,6 +275,8 @@ public class ShopCommands {
                             player.sendSystemMessage(Component.literal("No changes to your inventory.")
                                     .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
                         }
+
+                        */
                         
                         Component confirmComponent = Component.literal(">>>> ")
                                 .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY))
@@ -283,10 +287,12 @@ public class ShopCommands {
                                                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/confirmFinish " + processId))
                                                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Click to confirm purchase")))))
                                 .append(Component.literal(" <<<<").withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
-                        
+
+                        player.sendSystemMessage(headerComponent); // Remove this if the diff is enabled again
                         player.sendSystemMessage(confirmComponent);
                         player.sendSystemMessage(footerComponent);
                         player.sendSystemMessage(spacerComponent);
+
                         
                     } catch (Exception e) {
                         DebugLogger.logError("Error processing shop finish response", e);
