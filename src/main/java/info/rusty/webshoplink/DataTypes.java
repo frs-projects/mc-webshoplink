@@ -303,7 +303,9 @@ public class DataTypes {
         public ItemData getItem(Integer index) {
             return items.get(index);
         }
-    }    public static class ItemData {
+    }
+    
+    public static class ItemData {
         private String itemId;
         private Integer count;
         private JsonObject nbt;
