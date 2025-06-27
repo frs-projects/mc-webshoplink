@@ -72,12 +72,6 @@ public class Config {
         shopEndpoint = SHOP_ENDPOINT.get();
         shopCheckoutEndpoint = SHOP_CHECKOUT_ENDPOINT.get();
         shopAppliedEndpoint = SHOP_APPLIED_ENDPOINT.get();
-        
-        // Load money items
-        moneyItems = MONEY_ITEMS.get().stream()
-                .map(ResourceLocation::tryParse)
-                .map(ForgeRegistries.ITEMS::getValue)
-                .collect(Collectors.toSet());
                 
         // Load debug configuration
         debugEnabled = DEBUG_ENABLED.get();
