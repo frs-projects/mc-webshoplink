@@ -33,13 +33,6 @@ public class Config {
     private static final ForgeConfigSpec.ConfigValue<String> SHOP_APPLIED_ENDPOINT = BUILDER
             .comment("Endpoint for marking shop processes as applied")
             .define("shopAppliedEndpoint", "/{uuid}/setApplied");
-            
-    // Money Items configuration
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> MONEY_ITEMS = BUILDER
-            .comment("Items to be considered as money for shop transactions (will be removed when initiating shop)")
-            .defineList("moneyItems", 
-                Collections.singletonList("minecraft:emerald"),
-                Config::validateItemName);
                 
     // Debug configuration
     private static final ForgeConfigSpec.BooleanValue DEBUG_ENABLED = BUILDER

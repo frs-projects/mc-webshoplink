@@ -101,8 +101,12 @@ public class ShopCommands {
         // Serialize the inventory for API communication
         InventoryList inventories = new InventoryList();
         inventories.setInventoryFromPlayer(player.getInventory());
-        inventories.setEchestFromPlayer(player.getEnderChestInventory());        // Send debug to server console, then exit. just debugging:
-        DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);        // Send API request to initiate shop process
+        inventories.setEchestFromPlayer(player.getEnderChestInventory());
+        
+        // Send debug to server console
+        DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);
+        
+        // Send API request to initiate shop process
         ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
             .thenAccept(shopResponse -> {
                 try {
@@ -174,14 +178,7 @@ public class ShopCommands {
                     player.sendSystemMessage(finishComponent);
                     player.sendSystemMessage(footerComponent);
                     player.sendSystemMessage(spacerComponent);
-                    
-                    // Remove money items from the player's inventory
-                    int removedItems = removeMoneyItems(player);
-                    if (removedItems > 0) {
-                        player.sendSystemMessage(Component.literal("Removed " + removedItems + " money items from your Inventory and Ender Chest.")
-                                .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
-                        DebugLogger.log("Removed " + removedItems + " money items from player " + player.getName().getString());
-                    }                } catch (Exception e) {
+                } catch (Exception e) {
                     DebugLogger.logError("Error processing shop response", e);
                     
                     // Create a formatted error message
@@ -366,14 +363,36 @@ public class ShopCommands {
                 player.sendSystemMessage(Component.literal("No active shopping process found with that ID."));
                 return 0;
             }
+
+            // Capture the current inventory state for comparison
+            InventorySnapshot currentInventory = captureInventory(player);
             
-            // Check if the player's inventory has changed since the shop process started
-            if (!inventoriesMatch(shopProcess.getOriginalInventory(), captureInventory(player))) {
+            // Compare the current inventory with the original inventory
+            if (!inventoriesMatch(shopProcess.getOriginalInventory(), currentInventory)) {
                 DebugLogger.log("Inventory changed for player " + player.getName().getString() + ", purchase cancelled", Config.DebugVerbosity.MINIMAL);
-                player.sendSystemMessage(Component.literal("Your inventory has changed since starting the shop process. Purchase cancelled."));
+                
+                // Get detailed information about what changed
+                String differences = InventoryManager.getInventoryDifferences(shopProcess.getOriginalInventory(), currentInventory);
+                
+                // Provide more detailed error message about inventory changes
+                player.sendSystemMessage(Component.literal("Your inventory has changed since starting the shop process. Purchase cancelled.")
+                        .withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+                
+                if (differences != null) {
+                    player.sendSystemMessage(Component.literal("Changes detected: " + differences)
+                            .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
+                }
+                
+                // Log detailed information about what changed for debugging
+                DebugLogger.log("Inventory differences: " + (differences != null ? differences : "Unknown"), Config.DebugVerbosity.MINIMAL);
+                DebugLogger.log("Original inventory: " + GSON.toJson(shopProcess.getOriginalInventory()), Config.DebugVerbosity.ALL);
+                DebugLogger.log("Current inventory: " + GSON.toJson(currentInventory), Config.DebugVerbosity.ALL);
+                
                 ACTIVE_SHOP_PROCESSES.remove(processId);
                 return 0;
-            }            // First notify the API that the changes will be applied and wait for confirmation
+            }
+            
+            // First notify the API that the changes will be applied and wait for confirmation
             ApiService.notifyChangesApplied(processId, shopProcess.getTwoFactorCode())
                 .thenAccept(success -> {
                     // The API has confirmed the transaction and notifyChangesApplied now only returns true
@@ -384,7 +403,6 @@ public class ShopCommands {
                     applyNewEchest(player, shopProcess.getNewEchest());
                     DebugLogger.log("Applied inventory changes to player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
                     DebugLogger.log("Applied inventory changes from session " + processId + " to player " + player.getName().getString());
-                    
                     // Display success message using utility method
                     displaySuccessMessage(player, shopProcess.getShopLabel(), "Purchase completed successfully!");
                     

@@ -436,7 +436,7 @@ public class DataTypes {
         /**
          * Helper method to format item IDs for display
          */
-        private static String formatItemId(String itemId) {
+        public static String formatItemId(String itemId) {
             // Keep the full itemId like "minecraft:iron_ingot"
             String displayName = itemId;
             

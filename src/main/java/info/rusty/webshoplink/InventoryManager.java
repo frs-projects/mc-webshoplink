@@ -361,46 +361,6 @@ public class InventoryManager {
     }
 
     /**
-     * Removes money items from a player's inventory
-     */
-    public static int removeMoneyItems(Player player) {
-        int removed = 0;
-        Inventory inventory = player.getInventory();
-        Container echest = player.getEnderChestInventory();
-        
-        // Log the operation if debug is enabled
-        DebugLogger.log("Checking for money items to remove from player: " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
-        
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
-            ItemStack stack = inventory.getItem(i);
-            if (!stack.isEmpty() && Config.moneyItems.contains(stack.getItem())) {
-                DebugLogger.log("Removing money item: " + stack.getItem().getDescription().getString() + 
-                    " x" + stack.getCount() + " from Inventory slot " + i,
-                    Config.DebugVerbosity.DEFAULT
-                );
-                removed += stack.getCount();
-                inventory.setItem(i, ItemStack.EMPTY);
-            }
-        }
-
-        for (int i = 0; i < echest.getContainerSize(); i++) {
-            ItemStack stack = echest.getItem(i);
-            if (!stack.isEmpty() && Config.moneyItems.contains(stack.getItem())) {
-                DebugLogger.log("Removing money item: " + stack.getItem().getDescription().getString() + 
-                    " x" + stack.getCount() + " from E-Chest slot " + i,
-                    Config.DebugVerbosity.DEFAULT
-                );
-                removed += stack.getCount();
-                echest.setItem(i, ItemStack.EMPTY);
-            }
-        }
-        
-        DebugLogger.log("Removed " + removed + " money items from player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
-        
-        return removed;
-    }
-
-    /**
      * Logs detailed comparison of an item with its NBT data
      * @param current The current item in the inventory
      * @param itemData The item data from the API
@@ -489,5 +449,59 @@ public class InventoryManager {
         } else {
             DebugLogger.log("Neither item has NBT data", Config.DebugVerbosity.DEFAULT);
         }
+    }
+
+    /**
+     * Compares two inventory snapshots and returns detailed information about the differences.
+     * This is used to provide better feedback when inventory verification fails.
+     * 
+     * @param snapshot The original inventory snapshot
+     * @param current The current inventory snapshot
+     * @return A string describing the differences, or null if inventories match
+     */
+    public static String getInventoryDifferences(InventorySnapshot snapshot, InventorySnapshot current) {
+        StringBuilder differences = new StringBuilder();
+        boolean hasDifferences = false;
+        
+        // Check main inventory
+        if (snapshot.getMainInventory().length != current.getMainInventory().length) {
+            differences.append("Main inventory size changed. ");
+            hasDifferences = true;
+        } else {
+            for (int i = 0; i < snapshot.getMainInventory().length; i++) {
+                if (!ItemStack.matches(snapshot.getMainInventory()[i], current.getMainInventory()[i])) {
+                    differences.append("Item in slot ").append(i).append(" changed. ");
+                    hasDifferences = true;
+                }
+            }
+        }
+        
+        // Check armor inventory
+        if (snapshot.getArmorInventory().length != current.getArmorInventory().length) {
+            differences.append("Armor inventory size changed. ");
+            hasDifferences = true;
+        } else {
+            for (int i = 0; i < snapshot.getArmorInventory().length; i++) {
+                if (!ItemStack.matches(snapshot.getArmorInventory()[i], current.getArmorInventory()[i])) {
+                    differences.append("Armor in slot ").append(i).append(" changed. ");
+                    hasDifferences = true;
+                }
+            }
+        }
+        
+        // Check offhand inventory
+        if (snapshot.getOffhandInventory().length != current.getOffhandInventory().length) {
+            differences.append("Offhand inventory size changed. ");
+            hasDifferences = true;
+        } else {
+            for (int i = 0; i < snapshot.getOffhandInventory().length; i++) {
+                if (!ItemStack.matches(snapshot.getOffhandInventory()[i], current.getOffhandInventory()[i])) {
+                    differences.append("Offhand item changed. ");
+                    hasDifferences = true;
+                }
+            }
+        }
+        
+        return hasDifferences ? differences.toString() : null;
     }
 }
