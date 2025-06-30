@@ -26,6 +26,10 @@ public class Config {
             .comment("Endpoint for initiating shop processes")
             .define("shopEndpoint", "/initiate");
 
+    private static final ForgeConfigSpec.ConfigValue<String> SHOP_CANCEL_ENDPOINT = BUILDER
+            .comment("Endpoint for cancelling shop processes")
+            .define("shopCancelEndpoint", "/{uuid}/cancel");
+
     private static final ForgeConfigSpec.ConfigValue<String> SHOP_CHECKOUT_ENDPOINT = BUILDER
             .comment("Endpoint for checking out shop processes")
             .define("shopCheckoutEndpoint", "/{uuid}/checkout");
@@ -47,6 +51,7 @@ public class Config {
 
     public static String apiBaseUrl;
     public static String shopEndpoint;
+    public static String shopCancelEndpoint;
     public static String shopCheckoutEndpoint;
     public static String shopAppliedEndpoint;
     public static Set<Item> moneyItems;
@@ -70,6 +75,7 @@ public class Config {
     static void onLoad(final ModConfigEvent event) {
         apiBaseUrl = API_BASE_URL.get();
         shopEndpoint = SHOP_ENDPOINT.get();
+        shopCancelEndpoint = SHOP_CANCEL_ENDPOINT.get();
         shopCheckoutEndpoint = SHOP_CHECKOUT_ENDPOINT.get();
         shopAppliedEndpoint = SHOP_APPLIED_ENDPOINT.get();
                 

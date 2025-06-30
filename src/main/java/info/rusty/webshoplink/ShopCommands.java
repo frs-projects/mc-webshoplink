@@ -106,6 +106,34 @@ public class ShopCommands {
         // Send debug to server console
         DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);
         
+        // Check if we have an active shop process for this player
+        if (ACTIVE_SHOP_PROCESSES.values().stream().anyMatch(sp -> sp.getPlayerId().equals(player.getUUID()))) {
+            DebugLogger.log("Player " + player.getName().getString() + " already has an active shop process. Cancelling previous process.", Config.DebugVerbosity.MINIMAL);
+            
+            // Cancel the previous shop process
+            ACTIVE_SHOP_PROCESSES.values().stream()
+                .filter(sp -> sp.getPlayerId().equals(player.getUUID()))
+                .findFirst()
+                .ifPresent(shopProcess -> {
+                    ApiService.cancelShop(shopProcess.getProcessId(), player.getName().getString(), shopProcess.getTwoFactorCode())
+                        .thenAccept(success -> {
+                            if (success) {
+                                DebugLogger.log("Cancelled previous shop process for player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
+                                player.sendSystemMessage(Component.literal("Your previous shopping process has been cancelled, starting a new one.").withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
+                                // Remove the cancelled process from the active map
+                                ACTIVE_SHOP_PROCESSES.remove(shopProcess.getProcessId());
+                            } else {
+                                DebugLogger.logError("Failed to cancel previous shop process for player " + player.getName().getString(), null);
+                                player.sendSystemMessage(Component.literal("Failed to cancel your previous shopping process. Please try again later.").withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+                            }
+                        }).exceptionally(e -> {
+                            DebugLogger.logError("Error cancelling previous shop process", e);
+                            player.sendSystemMessage(Component.literal("Error cancelling your previous shopping process. Please try again later.").withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+                            return null;
+                        });
+                });
+        }
+
         // Send API request to initiate shop process
         ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
             .thenAccept(shopResponse -> {

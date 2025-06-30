@@ -119,6 +119,68 @@ public class ApiService {
                     return errorResponse;
                 });
     }
+
+    /**
+     * Cancels a shop session with the API
+     */
+    public static CompletableFuture<Boolean> cancelShop(UUID processId, String playerName, String twoFactorCode) {
+        // Log cancellation attempt
+        DebugLogger.log("Player " + playerName + " cancelled shop session", Config.DebugVerbosity.MINIMAL);
+        DebugLogger.log("Player " + playerName + " cancelling shop session: " + processId + " with code: " + twoFactorCode, Config.DebugVerbosity.DEFAULT);
+
+        // Create request payload
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("tfaCode", twoFactorCode);
+
+        // Send HTTP request
+        String jsonPayload = GSON.toJson(payload);
+        String endpoint = Config.apiBaseUrl + Config.shopCancelEndpoint.replace("{uuid}", processId.toString());
+
+        DebugLogger.log("Sending cancellation request to: " + endpoint, Config.DebugVerbosity.DEFAULT);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                .build();
+        // Process the request asynchronously
+        return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(response -> {
+                    if (response.statusCode() == 200) {
+                        DebugLogger.log("Received shop cancel response: " + response.body(), Config.DebugVerbosity.ALL);
+                        // cancel was successful.
+                        return true;
+                    } else {
+                        String errorMsg;
+                          // Try to parse error message from response body
+                        try {
+                            Map<String, String> errorMap = GSON.fromJson(response.body(), Map.class);
+                            if (errorMap.containsKey("message") || errorMap.containsKey("error")) {
+                                errorMsg = errorMap.getOrDefault("message", 
+                                        errorMap.getOrDefault("error", "Unknown error"));
+                                DebugLogger.log("Parsed error message from cancelShop: " + errorMsg, Config.DebugVerbosity.DEFAULT);
+                            } else {
+                                errorMsg = "API error: " + response.statusCode() + " - " + response.body();
+                            }
+                        } catch (Exception e) {
+                            // If parsing fails, use a generic error message
+                            DebugLogger.logError("Error parsing response in cancelShop: " + e.getMessage(), e);
+                            errorMsg = "Error from shop cancel API: " + response.statusCode() + " - " + response.body();
+                        }
+                        
+                        DebugLogger.logError(errorMsg, null);
+                        throw new ErrorResponse(errorMsg, response.statusCode());
+                    }
+                }).exceptionally(ex -> {
+                    if (ex.getCause() instanceof ErrorResponse) {
+                        // Just rethrow if it's already our custom error
+                        throw (ErrorResponse) ex.getCause();
+                    }
+                    
+                    DebugLogger.logError("Exception during cancel API call", ex);
+                    throw new ErrorResponse("API communication error: Failed to connect to shop server", 0);
+                });
+    }
     
     /**
      * Finishes a shop session with the API
@@ -142,7 +204,8 @@ public class ApiService {
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                .build();          // Process the request asynchronously
+                .build();
+        // Process the request asynchronously
         return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
                     if (response.statusCode() == 200) {
