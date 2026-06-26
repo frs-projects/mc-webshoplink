@@ -40,8 +40,9 @@ run also fills a cart and verifies the round-trip end to end.
 1. Build/install the mod on a server and copy [`webshoplink-common.toml`](./webshoplink-common.toml)
    into the server's `config/` folder (the defaults already point at this demo).
 2. Start this demo server, then in game run `/shop default`.
-3. Click the chat link to open the shop, build your cart, then click
-   **Finish Trade** and **Confirm**. Watch both the in-game inventory and this
+3. The shop opens in an in-game browser window (requires the WebshopLink client
+   mod + MCEF). Build your cart, then click **Finish Trade** in the button bar
+   below the browser to apply it. Watch both the in-game inventory and this
    server's console.
 
 ---
@@ -56,7 +57,7 @@ Minecraft                         Demo server (this project)            Browser
    |      inventories}                   |                                  |
    |<--- {uuid, link, twoFactorCode} ----|                                  |
    |                                     |                                  |
-   |  (player clicks the chat link) - - - - - - - - - - - - - - - - - - - ->| GET /shop/:uuid
+   |  (in-game browser opens the link) - - - - - - - - - - - - - - - - - - ->| GET /shop/:uuid
    |                                     |<--- GET  /api/session/:uuid ------| load catalog + inventory
    |                                     |<--- POST /api/session/:uuid/cart -| buy/sell, live preview
    |                                     |                                  |
@@ -164,7 +165,7 @@ Copy [`.env.example`](./.env.example) to `.env` (Bun loads it automatically):
 |---|---|---|
 | `PORT` | `8080` | Port to listen on. |
 | `PUBLIC_URL` | `http://localhost:8080` | Origin used to build the browser `link`. Change it behind a proxy/tunnel. |
-| `WEBSHOP_API_KEY` | _(empty)_ | If set, the mod must send a matching `X-Webshop-Api-Key`. Set the same value as `apiKey` in the mod config. |
+| `WEBSHOP_API_KEY` | _(empty)_ | If set, callers must send a matching `X-Webshop-Api-Key`. Leave empty for this mod build, which does not send an API key. |
 
 ---
 

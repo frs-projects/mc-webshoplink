@@ -33,6 +33,8 @@ public class Webshoplink {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        // Register the network channel/packets used to drive the in-game browser.
+        Networking.register();
         LOGGER.info("Webshoplink mod initialized");
     }
 

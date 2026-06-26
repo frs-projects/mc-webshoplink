@@ -9,10 +9,44 @@
       For a production shop you'd compile Tailwind instead (see README).
     -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /*
+        The page is rendered in a transparent in-game browser overlaid on the
+        Minecraft world, so the document background is transparent and we dim
+        the area behind the floating panel with a semi-transparent fill.
+        NOTE: CSS backdrop-filter cannot blur the game world — the world is not
+        part of the page, so the browser has nothing to blur. Blurring the world
+        must be done on the Minecraft render side (ShopBrowserScreen).
+      */
+      html,
+      body {
+        background: transparent;
+      }
+      /* Slim, themed scrollbar so the floating panel feels self-contained. */
+      #panel ::-webkit-scrollbar {
+        width: 8px;
+      }
+      #panel ::-webkit-scrollbar-thumb {
+        background: rgb(71 85 105 / 0.8);
+        border-radius: 9999px;
+      }
+    </style>
   </head>
-  <body class="h-full bg-slate-900 text-slate-100">
-    <div id="app" class="mx-auto max-w-5xl p-6">
-      <p class="text-slate-400">Loading session…</p>
+  <body class="h-full text-slate-100">
+    <!-- Full-viewport blurred + dimmed backdrop; clicks fall through visually. -->
+    <div
+      id="backdrop"
+      class="fixed inset-0 flex items-center justify-center bg-slate-950/40 p-4"
+    >
+      <!-- The floating shop window. -->
+      <div
+        id="panel"
+        class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/90 shadow-2xl ring-1 ring-black/40 backdrop-blur-xl"
+      >
+        <div id="app" class="overflow-y-auto p-6">
+          <p class="text-slate-400">Loading session…</p>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -124,23 +158,23 @@
           : "";
 
         app.innerHTML = `
-          <header class="mb-6">
+          <header class="mb-6 border-b border-slate-700/70 pb-4">
             <h1 class="text-2xl font-bold">🛒 ${state.shopSlug} shop</h1>
             <p class="text-sm text-slate-400">Player <code>${state.playerId}</code> · session <code>${state.uuid}</code></p>
           </header>
 
           ${statusBanner}
 
-          <div class="grid gap-6 md:grid-cols-3">
-            <section class="md:col-span-2">
+          <div class="grid gap-6 lg:grid-cols-3">
+            <section class="lg:col-span-2">
               <h2 class="mb-3 text-lg font-semibold">Buy</h2>
-              <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">${catalog}</div>
+              <div class="grid gap-3 sm:grid-cols-2">${catalog}</div>
 
               <h2 class="mt-6 mb-3 text-lg font-semibold">Sell</h2>
               <div class="space-y-2">${sell}</div>
             </section>
 
-            <aside class="space-y-3">
+            <aside class="space-y-3 lg:sticky lg:top-0 lg:self-start">
               <div class="rounded-lg border border-slate-700 bg-slate-800 p-4">
                 <h2 class="mb-2 text-lg font-semibold">Summary</h2>
                 <div class="flex justify-between text-sm"><span>Balance now</span><span>${p.balanceBefore} 💚</span></div>
@@ -152,8 +186,9 @@
               </div>
               ${errors}
               <div class="rounded-lg border border-sky-800 bg-sky-950/50 p-4 text-sm text-sky-200">
-                When you're happy with the cart, return to Minecraft and click
-                <b>Finish Trade</b> (or run <code>/shopFinish ${state.uuid}</code>) to apply it.
+                When you're happy with the cart, click <b>Finish Trade</b> in the
+                button bar below this browser window to apply it. <b>Cancel</b> (or
+                closing with <kbd>Esc</kbd>) discards the session.
               </div>
             </aside>
           </div>
