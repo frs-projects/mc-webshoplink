@@ -56,6 +56,8 @@ Players whose client is missing the mod/MCEF will be told to install them when t
 
 Normal play only needs `/shop` — the browser's buttons drive the rest. The other commands exist as fallbacks and for clients without the in-game browser.
 
+By default anyone can run `/shop`. To restrict it to operators/command blocks (so shops only open at specific locations) set `shopCommandPermissionLevel` in the config — see [Locking down `/shop`](WIKI.md#locking-down-shop).
+
 ## Installation
 
 **Server**

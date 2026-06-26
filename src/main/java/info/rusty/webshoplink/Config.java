@@ -41,7 +41,17 @@ public class Config {
     private static final ForgeConfigSpec.ConfigValue<String> SHOP_APPLIED_ENDPOINT = BUILDER
             .comment("Endpoint for marking shop processes as applied")
             .define("shopAppliedEndpoint", "/{uuid}/setApplied");
-                
+
+    // Command permission configuration
+    private static final ForgeConfigSpec.IntValue SHOP_COMMAND_PERMISSION_LEVEL = BUILDER
+            .comment("Minecraft permission level required to run /shop (initiate a shopping session).",
+                    "0 = anyone, 1 = moderator, 2 = gamemaster/operator (also command blocks), 3 = admin, 4 = owner.",
+                    "Set to 2 to lock shops down so only operators or command blocks can open them, e.g. via",
+                    "'/execute as @p run shop <type>' at a specific location. The finishing commands",
+                    "(/shopFinish, /confirmFinish, /shopCancel) stay available to all players so they can",
+                    "complete a session that was opened for them; they cannot start a session on their own.")
+            .defineInRange("shopCommandPermissionLevel", 0, 0, 4);
+
     // Debug configuration
     private static final ForgeConfigSpec.BooleanValue DEBUG_ENABLED = BUILDER
             .comment("Enable debug logging")
@@ -59,6 +69,7 @@ public class Config {
     public static String shopCancelEndpoint;
     public static String shopCheckoutEndpoint;
     public static String shopAppliedEndpoint;
+    public static int shopCommandPermissionLevel;
     public static Set<Item> moneyItems;
     public static boolean debugEnabled;
     public static DebugVerbosity debugVerbosity;
@@ -84,7 +95,8 @@ public class Config {
         shopCancelEndpoint = SHOP_CANCEL_ENDPOINT.get();
         shopCheckoutEndpoint = SHOP_CHECKOUT_ENDPOINT.get();
         shopAppliedEndpoint = SHOP_APPLIED_ENDPOINT.get();
-                
+        shopCommandPermissionLevel = SHOP_COMMAND_PERMISSION_LEVEL.get();
+
         // Load debug configuration
         debugEnabled = DEBUG_ENABLED.get();
         debugVerbosity = DEBUG_VERBOSITY.get();

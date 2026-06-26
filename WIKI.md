@@ -35,6 +35,9 @@ shopAppliedEndpoint = "/{uuid}/setApplied"
 # Endpoint for cancelling shop processes
 shopCancelEndpoint = "/{uuid}/cancel"
 
+# Minecraft permission level required to run /shop (0-4). 0 = anyone, 2 = operators/command blocks only.
+shopCommandPermissionLevel = 0
+
 # Enable debug logging
 debugEnabled = false
 
@@ -47,9 +50,35 @@ debugVerbosity = "DEFAULT"
 | `apiBaseUrl` | Root of your shop API. Every endpoint below is appended to it. |
 | `apiKey` | Sent as the `X-Webshop-Api-Key` header on **every** request. Leave empty to send an empty key; set it (and validate it server-side) to lock the API down. |
 | `shopEndpoint` / `shopCheckoutEndpoint` / `shopAppliedEndpoint` / `shopCancelEndpoint` | Paths for the four operations. The `{uuid}` placeholder is substituted with the session UUID; if you omit it from the path the UUID is still available in the JSON body. |
+| `shopCommandPermissionLevel` | Minecraft permission level (0–4) required to run `/shop`. Default `0` (anyone). See [Locking down `/shop`](#locking-down-shop) below. |
 | `debugEnabled` / `debugVerbosity` | Server-console logging. `ALL` prints full serialized inventories — useful when developing your API, noisy in production. |
 
 > **Important:** the in-game browser loads `link` exactly as returned by your `/initiate` response. If your server runs behind a proxy, tunnel, or public hostname, make sure that `link` is an address the **player's client** can actually reach — not an internal `localhost` address.
+
+---
+
+## Locking down `/shop`
+
+By default any player can run `/shop <type>` from anywhere. If you instead want shops to open only at specific locations — e.g. at a market stall block, an NPC, or a pressure plate — restrict who can *initiate* a session and drive `/shop` yourself from command blocks.
+
+Set the permission level in the config:
+
+```toml
+# 0 = anyone, 1 = moderator, 2 = gamemaster/operator (also command blocks), 3 = admin, 4 = owner
+shopCommandPermissionLevel = 2
+```
+
+At level `2`, only operators and command blocks can run `/shop`. Players can no longer open shops on their own, but you can open one *for* them from a command block at a chosen location:
+
+```
+/execute as @p[distance=..3] run shop weapons The Gunsmith
+```
+
+`/execute as` runs `/shop` as the targeted player (so their inventory is snapshotted) while keeping the command block's permission level, so the lock is satisfied.
+
+The finishing commands — `/shopFinish`, `/confirmFinish`, `/shopCancel` — are intentionally **not** affected by this setting and remain available to everyone. A player can only use them against a session that already exists, and with `/shop` locked down they cannot create one themselves, so there is nothing to abuse. Lowering or raising `shopCommandPermissionLevel` only gates session initiation.
+
+> Permission levels 2–4 map to vanilla op levels (`/op` grants level 4 by default, configurable via `server.properties` `op-permission-level`). Command blocks always run at level 2, which is why level `2` is the recommended setting for the command-block workflow.
 
 ---
 

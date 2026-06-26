@@ -44,7 +44,9 @@ public class ShopCommands {
         // Register "shop" command with optional label parameter
         event.getDispatcher().register(
             Commands.literal("shop")
-                .requires(source -> source.hasPermission(0)) // Anyone can use
+                // Configurable: 0 = anyone, 2 = operators/command blocks only. Evaluated lazily
+                // so the predicate always reflects the current config value.
+                .requires(source -> source.hasPermission(Config.shopCommandPermissionLevel))
                 .then(Commands.argument("type", StringArgumentType.string())
                     .executes(context -> executeShopCommand(context.getSource(),
                         StringArgumentType.getString(context, "type"), "Trader"))
