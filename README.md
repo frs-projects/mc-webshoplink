@@ -1,207 +1,78 @@
 # WebshopLink
 
-A mod for server-side shop functionality that allows players to interact with an external web shop system.  
+A Minecraft Forge mod that lets players browse and use an external web shop **inside an in-game browser window**, then have the purchased items applied straight to their inventory.
 
-> Im going to refer to this project as a mod throughout the description, even when talking about potential plugin versions of this project as the functionality will be the same regardless.
+> Throughout the docs this project is referred to as a "mod", even where a plugin version is discussed — the functionality is the same regardless.
 
-> Warning: This Mod is intended to work in tandem with a web-based shop system that does the actual modification of the players inventory.
+> **WebshopLink only handles the in-game side.** The actual shop (catalog, pricing, what items a player gets) lives in an external web service that you run and that speaks WebshopLink's HTTP protocol. See the [Wiki](WIKI.md) for the contract, and [`demo/`](demo/) for a working reference implementation.
 
-## Overview
+## How it works
 
-WebshopLink is a server-side only Mod that provides a seamless integration between your Minecraft server and an external web shop. Players can initiate shopping sessions in-game, complete purchases on a web interface, and have the items automatically added to their inventory.
+1. A player runs `/shop <type>` in game.
+2. WebshopLink (server side) sends the player's current inventory to your shop API and gets back a session URL.
+3. The URL opens in a **full-screen in-game browser** (rendered with [MCEF](https://github.com/CinemaMod/mcef)) floating over the game world, with a small button bar at the bottom.
+4. The player builds their cart on the web page, then clicks **Finish Trade**.
+5. WebshopLink fetches the resulting inventory from your API, verifies the player's inventory hasn't changed since the session started, and applies it. Closing the window (or **Cancel** / ESC) cancels the session.
+
+```
+Player ──/shop──▶ WebshopLink (server) ──HTTP──▶ Your shop API
+                        │                              │
+                        └──── opens in-game browser ───┘
+                                     │
+                        Finish Trade ▼
+                  inventory applied to player
+```
 
 ## Features
 
-- Server-side only implementation (no client-side mod required)
-- Two-factor authentication for enhanced security
-- Support for main Inventory and Ender-Chest modification
-- Proper NBT data serialization and deserialization for complex items
+- **In-game shopping** — the web shop renders in a Chromium browser overlaid on the game; no alt-tabbing to an external browser.
+- **Inventory verification** — purchases are rejected if the player's inventory changed between starting the session and confirming, preventing duping/race exploits.
+- **Two-factor session code** — an anti-tampering code is exchanged with your API on every call so sessions can't be forged from outside.
+- **API key support** — every request to your shop API carries a configurable `X-Webshop-Api-Key` header.
+- **Main inventory + Ender Chest** support, with full NBT serialization for complex items.
+- **Optional networking** — the mod registers its network channel as optional, so vanilla clients (or clients without the mod) can still connect to the server; they just can't open the browser.
+
+## Requirements
+
+| Side | Required |
+|---|---|
+| **Server** | WebshopLink mod |
+| **Client** | WebshopLink mod **+** [MCEF](https://www.curseforge.com/minecraft/mc-mods/mcef) |
+| **Elsewhere** | An external web shop implementing the [WebshopLink API](WIKI.md) |
+
+- Minecraft **1.20.1**, Forge **47.x**
+- MCEF **2.2.0+** (client only — the dedicated server never loads it)
+
+Players whose client is missing the mod/MCEF will be told to install them when they run `/shop`.
 
 ## Commands
 
-- `/shop <type>`
-  - Automatically cancels any previously unfinished sessions.
-  - Initiates a shop session of the specified type.
-  - Displays a clickable Link in chat to open the shop instance.
-  - Displays a clickable message in chat to execute the `/shopFinish` command automatically using the correct uuid.
-- `/shopFinish <uuid>`
-  - Starts checkout process.
-  - Displays a clickable message in chat to execute the `/confirmFinish` Command automatically using the correct uuid.
-  - TODO: Show inventory changes.
-- `/confirmFinish <uuid>`
-  - Applies the inventory changes and completes the transaction.
+| Command | Description |
+|---|---|
+| `/shop <type> [label]` | Cancels any unfinished session, then starts a new shop session of the given `type` (the `shopSlug` sent to your API). Optional `label` is shown in the confirmation UI. Opens the in-game browser. |
+| `/shopFinish <uuid>` | Manual backstop for checkout (the browser's **Finish Trade** button does this automatically). Fetches the new inventory and offers a clickable confirm link in chat. |
+| `/confirmFinish <uuid>` | Applies the checked-out inventory changes. |
+| `/shopCancel <uuid>` | Cancels the session both locally and with your API. |
+
+Normal play only needs `/shop` — the browser's buttons drive the rest. The other commands exist as fallbacks and for clients without the in-game browser.
 
 ## Installation
 
-1. Download the latest release JAR file
-2. Place the JAR file in your server's `mods` or `plugins` folder (Depending on server type)
-3. Configure the mod by editing the configuration file (generated after first run)
-4. Restart your server
+**Server**
+1. Download the latest WebshopLink release JAR.
+2. Drop it into the server's `mods/` folder.
+3. Start the server once to generate `config/webshoplink-common.toml`, then point it at your shop API (see the [Wiki](WIKI.md#configuration)).
+4. Restart.
 
-## Configuration
+**Client (each player)**
+1. Install [MCEF](https://www.curseforge.com/minecraft/mc-mods/mcef).
+2. Install the WebshopLink mod.
 
-After the first server start, a configuration file will be created at:
-`config/webshoplink-common.toml`
+## Documentation
 
-Configure the following settings:
+- **[Wiki](WIKI.md)** — server-operator setup: full config reference, the HTTP API your shop must implement, inventory data format, and the security model.
+- **[`demo/`](demo/)** — a small, fully-commented reference shop (Bun + Tailwind) you can run locally to try the mod or learn the contract.
 
-```toml
-# Base URL for the shop API
-apiBaseUrl = "http://localhost:8080/api/shop"
+## License
 
-#Endpoint for initiating shop processes
-shopEndpoint = "/initiate"
-
-#Endpoint for checking out shop processes
-shopCheckoutEndpoint = "/{uuid}/checkout"
-
-#Endpoint for marking shop processes as applied
-shopAppliedEndpoint = "/{uuid}/setApplied"
-
-#Endpoint for cancelling shop processes
-shopCancelEndpoint = "/{uuid}/cancel"
-```
-
-Replace the `apiBaseUrl` with the URL of your shop API.  
-
-When editing any of the "Endpoint" options, you can either put the uuid in the url like in the example or not, the uuid is additionally supplied in the request json body.
-
-## API Requirements
-
-The external shop API must implement the following endpoints:
-
-### 1. Shop Initiation Endpoint
-
-**Request:**
-```json
-{
-  "playerId": "uuid-of-player",
-  "shopSlug": "shop-type",
-  "inventories": {
-    "inventory": {
-      // Serialized Inventory Data
-      // See "Inventory Data Format" section in readme
-    },
-    "echest": { 
-      // Serialized Inventory Data
-      // See "Inventory Data Format" section in readme
-    }
-  }
-}
-```
-
-**Response:**
-```json
-{
-  // Full url to the shop instance frontend the player can visit
-  "link": "https://test.com/shopidxy",
-  // UUID identifying the instance for further commands.
-  "uuid": "uuid",
-  // Verification only used in the mod to ensure no tampering from external sources.
-  "twoFactorCode": 000000
-}
-```
-
-### 2. Shop Cancel Endpoint
-
-**Request:**
-```json
-{
-  // tfa code from init response
-  "tfaCode": 000000,
-  // uuid from init response
-  "uuid": "uuid"
-}
-```
-
-**Response:**  
-HTTP Status Code is important here, only a "200" Code is considered a successful cancelation
-```json
-{
-  "error": "Error message", // optional
-  "message": "some other message" // optional
-}
-```
-
-### 3. Shop Finish Endpoint
-
-**Request:**
-```json
-{
-  // tfa code from init response
-  "tfaCode": 000000,
-  // uuid from init response
-  "uuid": "uuid"
-}
-```
-
-**Response:**
-```json
-{
-  "inventory": {
-    // Serialized Inventory Data
-    // See "Inventory Data Format" section in readme
-  },
-  "echest": {
-    // Serialized Inventory Data
-    // See "Inventory Data Format" section in readme
-  }
-}
-```
-
-### 4. Shop Finish Endpoint
-
-**Request:**
-```json
-{
-  // tfa code from init response
-  "tfaCode": 000000,
-  // uuid from init response
-  "uuid": "uuid"
-}
-```
-
-**Response:**
-```json
-{
-  "inventory": {
-    // Serialized Inventory Data
-    // See "Inventory Data Format" section in readme
-  },
-  "echest": {
-    // Serialized Inventory Data
-    // See "Inventory Data Format" section in readme
-  }
-}
-```
-
-## Inventory Data Format
-
-The mod serializes and deserializes inventory data in the following format:
-
-```json
-{
-  "inventory": {
-    "size": 41,
-    "items": {
-      // Each object is keyed by its slot ID and contains fully serialized data of the item in the slot.
-      "0": {
-        "itemId": "minecraft:cobblestone",
-        "count": 1
-      },
-      "1": {
-        "itemId": "minecraft:diamond_chestplate",
-        "count": 1,
-        "nbt": {
-          "RepairCost": 1,
-          "Enchantments": []
-          // etc. etc.
-        }
-      }
-    }
-  },
-  "echest": {
-      // Same as in the inventory, just with the items from the echest...
-  }
-}
-```
+See [LICENSE](LICENSE).
