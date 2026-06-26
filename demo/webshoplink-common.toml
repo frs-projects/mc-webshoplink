@@ -1,0 +1,26 @@
+# Example mod config for talking to this demo server.
+# Copy this into your server's `config/webshoplink-common.toml`.
+#
+# The defaults already match the demo, so usually you only need to set `apiKey`
+# if you enabled WEBSHOP_API_KEY on the demo server.
+
+# Base URL for the shop API — matches the demo server on port 8080.
+apiBaseUrl = "http://localhost:8080/api/shop"
+
+# Shared secret sent in the X-Webshop-Api-Key header. Must equal WEBSHOP_API_KEY
+# on the demo server. Leave empty if the demo runs without an API key.
+apiKey = ""
+
+# Endpoints (the demo implements exactly these paths).
+shopEndpoint = "/initiate"
+shopCheckoutEndpoint = "/{uuid}/checkout"
+shopAppliedEndpoint = "/{uuid}/setApplied"
+shopCancelEndpoint = "/{uuid}/cancel"
+
+# Show the in-game chest GUI in addition to chat.
+enableGui = true
+
+# Turn these on to see the full request/response traffic in the server log,
+# which pairs nicely with the demo server's own console output.
+debugEnabled = true
+debugVerbosity = "ALL"

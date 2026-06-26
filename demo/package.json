@@ -1,0 +1,13 @@
+{
+  "name": "webshoplink-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A minimal, well-documented example web shop compatible with the WebshopLink Minecraft mod. Meant for local debugging and as a reference implementation of the mod's HTTP API.",
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts",
+    "dev": "bun --watch run server.ts",
+    "simulate": "bun run simulate.ts",
+    "simulate:full": "bun run simulate.ts full"
+  }
+}
