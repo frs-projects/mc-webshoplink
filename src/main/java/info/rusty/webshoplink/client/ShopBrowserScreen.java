@@ -90,7 +90,11 @@ public class ShopBrowserScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(guiGraphics);
+        // No renderBackground() here on purpose: the browser is created transparent
+        // (see init()), and the world keeps rendering behind a non-pause screen, so we
+        // blit the page straight over the live world. Painting the usual dimming
+        // gradient first would show through every transparent pixel of the page and
+        // defeat the transparency.
         if (browser != null && browser.isTextureReady()) {
             ResourceLocation texture = browser.getTextureLocation();
             if (texture != null) {
@@ -231,6 +235,12 @@ public class ShopBrowserScreen extends Screen {
             browser = null;
         }
         super.removed();
+    }
+
+    @Override
+    public void renderBackground(GuiGraphics guiGraphics) {
+        // Intentionally empty: the transparent browser fills the screen over the live
+        // world, so we never want the default screen dimming. See render().
     }
 
     @Override
