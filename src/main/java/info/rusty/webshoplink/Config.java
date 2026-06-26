@@ -22,6 +22,10 @@ public class Config {
             .comment("Base URL for the shop API")
             .define("apiBaseUrl", "http://localhost:8080/api/shop");
 
+    private static final ForgeConfigSpec.ConfigValue<String> API_KEY = BUILDER
+            .comment("API key sent as the X-Webshop-Api-Key header on every request to the shop API")
+            .define("apiKey", "");
+
     private static final ForgeConfigSpec.ConfigValue<String> SHOP_ENDPOINT = BUILDER
             .comment("Endpoint for initiating shop processes")
             .define("shopEndpoint", "/initiate");
@@ -50,6 +54,7 @@ public class Config {
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     public static String apiBaseUrl;
+    public static String apiKey;
     public static String shopEndpoint;
     public static String shopCancelEndpoint;
     public static String shopCheckoutEndpoint;
@@ -74,6 +79,7 @@ public class Config {
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         apiBaseUrl = API_BASE_URL.get();
+        apiKey = API_KEY.get();
         shopEndpoint = SHOP_ENDPOINT.get();
         shopCancelEndpoint = SHOP_CANCEL_ENDPOINT.get();
         shopCheckoutEndpoint = SHOP_CHECKOUT_ENDPOINT.get();

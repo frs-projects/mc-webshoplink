@@ -51,6 +51,7 @@ public class ApiService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(Config.apiBaseUrl + Config.shopEndpoint))
                 .header("Content-Type", "application/json")
+                .header("X-Webshop-Api-Key", Config.apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
         // Process the request asynchronously
@@ -142,6 +143,7 @@ public class ApiService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
+                .header("X-Webshop-Api-Key", Config.apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
         // Process the request asynchronously
@@ -205,6 +207,7 @@ public class ApiService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
+                .header("X-Webshop-Api-Key", Config.apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
         // Process the request asynchronously
@@ -269,6 +272,7 @@ public class ApiService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
+                .header("X-Webshop-Api-Key", Config.apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
           // Process the request asynchronously and wait for response to validate
