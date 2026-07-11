@@ -1,0 +1,23 @@
+# Client config preconfigured for the demo server — copy into your CLIENT's
+# config/ folder (next to webshoplink-client.toml generated on first launch)
+# to see the balance overlay against the demo.
+
+#Show the shop balance as a small always-visible overlay.
+#Renders the web page at balanceUrl in a tiny in-game browser box (requires MCEF).
+balanceDisplayEnabled = true
+#URL of the balance page. The player's UUID is appended to this URL,
+#or substituted for a {uuid} placeholder if the URL contains one.
+#Must be reachable from the player's client. No authentication is used.
+balanceUrl = "http://localhost:8080/balance/"
+#Screen corner the balance overlay is anchored to.
+#Allowed Values: TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT
+balancePosition = "TOP_RIGHT"
+#Width of the balance overlay in scaled (GUI) pixels.
+#Range: 20 ~ 640
+balanceWidth = 120
+#Height of the balance overlay in scaled (GUI) pixels.
+#Range: 10 ~ 360
+balanceHeight = 40
+#Distance from the screen edges in scaled (GUI) pixels.
+#Range: 0 ~ 100
+balanceMargin = 4

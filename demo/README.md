@@ -75,6 +75,13 @@ Minecraft                         Demo server (this project)            Browser
 
 Cancelling at any point sends `POST /…/:uuid/cancel`.
 
+Independently of sessions, the mod's optional balance HUD overlay loads
+`GET /balance/:playerUuid` (no auth — see the mod wiki's
+[Balance overlay](../WIKI.md#balance-overlay) section). The demo derives the
+balance from the player's most recent session, since it has no player database.
+Enable it by copying [`webshoplink-client.toml`](./webshoplink-client.toml) into
+your **client's** `config/` folder.
+
 ---
 
 ## The API contract (what a real shop must implement)
@@ -146,8 +153,10 @@ hasn't changed since `/initiate`).
 | [`catalog.ts`](./catalog.ts) | The shop's items, prices, and currency. Edit this to change the stock. |
 | [`types.ts`](./types.ts) | TypeScript mirror of the mod's JSON types. |
 | [`public/index.html`](./public/index.html) | The Tailwind shop page the player opens. |
+| [`public/balance.html`](./public/balance.html) | The tiny page the mod's balance HUD overlay loads at `/balance/:playerUuid`. |
 | [`simulate.ts`](./simulate.ts) | Stand-in for the mod, to test without Minecraft. |
-| [`webshoplink-common.toml`](./webshoplink-common.toml) | Drop-in mod config pointing at this server. |
+| [`webshoplink-common.toml`](./webshoplink-common.toml) | Drop-in mod config (server `config/`) pointing at this server. |
+| [`webshoplink-client.toml`](./webshoplink-client.toml) | Drop-in client config (client `config/`) enabling the balance overlay against this server. |
 | [`.env.example`](./.env.example) | Configuration (port, public URL, API key). |
 
 The shop itself is deliberately minimal: emeralds are the currency, you can buy

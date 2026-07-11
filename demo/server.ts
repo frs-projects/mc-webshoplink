@@ -19,10 +19,16 @@
  *        GET  /api/session/:uuid              -> session view model (JSON)
  *        POST /api/session/:uuid/cart         -> update the cart, get a preview
  *
+ *     Plus the balance overlay page the mod's HUD browser loads directly
+ *     (keyed by player UUID, no API key or session required):
+ *
+ *        GET  /balance/:playerUuid            -> tiny balance box (HTML)
+ *        GET  /api/balance/:playerUuid        -> { balance, currency } (JSON)
+ *
  * See ./README.md for the full flow and how to point the mod at this server.
  */
 
-import { computeOrder, createSession, deleteSession, getSession } from "./store";
+import { computeOrder, createSession, deleteSession, getSession, playerBalance } from "./store";
 import { CATALOG, CURRENCY_ITEM, CURRENCY_NAME, sellPrice, catalogByItemId } from "./catalog";
 import type { InitiateRequest, SessionRequest } from "./types";
 
@@ -33,6 +39,7 @@ const PUBLIC_URL = process.env.PUBLIC_URL ?? `http://localhost:${PORT}`;
 const API_KEY = process.env.WEBSHOP_API_KEY ?? "";
 
 const SHOP_PAGE = await Bun.file(new URL("./public/index.html", import.meta.url)).text();
+const BALANCE_PAGE = await Bun.file(new URL("./public/balance.html", import.meta.url)).text();
 
 // ---------------------------------------------------------------------------
 // Small response helpers
@@ -243,6 +250,15 @@ const server = Bun.serve({
       // --- The shop page itself. ---
       if (method === "GET" && /^\/shop\/[^/]+$/.test(path)) {
         return new Response(SHOP_PAGE, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+      }
+
+      // --- Balance overlay (loaded directly by the player's client; no auth). ---
+      const balance = path.match(/^\/api\/balance\/([^/]+)$/);
+      if (method === "GET" && balance) {
+        return json({ playerId: balance[1], balance: playerBalance(balance[1]), currency: CURRENCY_NAME });
+      }
+      if (method === "GET" && /^\/balance\/[^/]+$/.test(path)) {
+        return new Response(BALANCE_PAGE, { headers: { "Content-Type": "text/html; charset=utf-8" } });
       }
 
       // --- Landing page. ---

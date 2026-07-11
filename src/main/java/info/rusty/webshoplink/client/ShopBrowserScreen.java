@@ -234,6 +234,9 @@ public class ShopBrowserScreen extends Screen {
             browser.close();
             browser = null;
         }
+        // A finished trade changes the balance; refresh the overlay once the
+        // backend has had a moment to process the checkout.
+        BalanceOverlay.scheduleReload(2000);
         super.removed();
     }
 

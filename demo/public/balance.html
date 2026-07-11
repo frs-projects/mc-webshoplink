@@ -1,0 +1,60 @@
+<!doctype html>
+<!--
+  Balance overlay page, loaded by the mod's small in-game HUD browser at
+  /balance/<playerUuid>. The browser window IS the box: it is created
+  transparent and only a few dozen GUI pixels big, so this page fills 100%
+  of it with a single rounded panel and scales its text with the viewport.
+  It refreshes itself; the mod additionally reloads it after a shop session.
+-->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Balance</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: transparent;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    .box {
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35em;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 12px;
+      color: #e2e8f0;
+      font-size: min(40vh, 16vw);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    #amount { font-weight: 700; color: #34d399; }
+    #currency { opacity: 0.75; font-size: 0.7em; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <span id="amount">…</span>
+    <span id="currency"></span>
+  </div>
+  <script>
+    const playerId = location.pathname.split("/").pop();
+    async function refresh() {
+      try {
+        const res = await fetch("/api/balance/" + playerId);
+        const data = await res.json();
+        document.getElementById("amount").textContent = data.balance ?? "–";
+        document.getElementById("currency").textContent = data.balance != null ? data.currency : "";
+      } catch {
+        /* keep the last known value on transient errors */
+      }
+    }
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

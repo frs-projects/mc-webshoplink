@@ -89,6 +89,9 @@ public class Config {
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
+        if (event.getConfig().getSpec() != SPEC) {
+            return;
+        }
         apiBaseUrl = API_BASE_URL.get();
         apiKey = API_KEY.get();
         shopEndpoint = SHOP_ENDPOINT.get();

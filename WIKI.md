@@ -6,7 +6,8 @@ WebshopLink itself never decides prices, stock, or what a player receives. It on
 
 - snapshots the player's inventory and sends it to your shop API,
 - opens your shop's URL in an in-game browser,
-- fetches the resulting inventory from your API and applies it (after verifying nothing changed in the meantime).
+- fetches the resulting inventory from your API and applies it (after verifying nothing changed in the meantime),
+- optionally renders your shop's balance page as a small always-on HUD overlay (see [Balance overlay](#balance-overlay)).
 
 Everything shop-specific lives in **your** web service. A complete, commented reference implementation (Bun + Tailwind) is in [`demo/`](demo/) — run it locally to see the whole protocol end to end.
 
@@ -50,10 +51,52 @@ debugVerbosity = "DEFAULT"
 | `apiBaseUrl` | Root of your shop API. Every endpoint below is appended to it. |
 | `apiKey` | Sent as the `X-Webshop-Api-Key` header on **every** request. Leave empty to send an empty key; set it (and validate it server-side) to lock the API down. |
 | `shopEndpoint` / `shopCheckoutEndpoint` / `shopAppliedEndpoint` / `shopCancelEndpoint` | Paths for the four operations. The `{uuid}` placeholder is substituted with the session UUID; if you omit it from the path the UUID is still available in the JSON body. |
-| `shopCommandPermissionLevel` | Minecraft permission level (0–4) required to run `/shop`. Default `0` (anyone). See [Locking down `/shop`](#locking-down-shop) below. |
+| `shopCommandPermissionLevel` | Minecraft permission level (0-4) required to run `/shop`. Default `0` (anyone). See [Locking down `/shop`](#locking-down-shop) below. |
 | `debugEnabled` / `debugVerbosity` | Server-console logging. `ALL` prints full serialized inventories — useful when developing your API, noisy in production. |
 
 > **Important:** the in-game browser loads `link` exactly as returned by your `/initiate` response. If your server runs behind a proxy, tunnel, or public hostname, make sure that `link` is an address the **player's client** can actually reach — not an internal `localhost` address.
+
+### Client configuration
+
+The client generates a second, purely client-side config at `config/webshoplink-client.toml`. It only controls the optional [balance overlay](#balance-overlay):
+
+```toml
+# Show the shop balance as a small always-visible overlay (requires MCEF)
+balanceDisplayEnabled = true
+
+# URL of the balance page; the player's UUID is appended (or replaces {uuid})
+balanceUrl = "http://localhost:8080/balance/"
+
+# Screen corner: TOP_LEFT | TOP_RIGHT | BOTTOM_LEFT | BOTTOM_RIGHT
+balancePosition = "TOP_RIGHT"
+
+# Size and edge distance in scaled (GUI) pixels
+balanceWidth = 120
+balanceHeight = 40
+balanceMargin = 4
+```
+
+The overlay is **on by default**, but points at `localhost` — since this is a client config, ship it with your modpack so every player gets your real `balanceUrl` (a copy preconfigured for the demo is at [`demo/webshoplink-client.toml`](demo/webshoplink-client.toml)). Players who don't want the overlay can turn it off locally.
+
+---
+
+## Balance overlay
+
+When `balanceDisplayEnabled` is on, the mod keeps a **small transparent in-game browser** (the same MCEF browser used for the shop, just tiny and non-interactive) docked in the configured screen corner while the player is in a world. It simply loads:
+
+```
+GET {balanceUrl}{playerUuid}          e.g.  GET http://localhost:8080/balance/069a79f4-44e9-...
+```
+
+If `balanceUrl` contains a `{uuid}` placeholder, it is substituted instead of appended. That is the entire contract — a plain `GET`, **no authentication, no API key, no session**: the page is fetched directly by the player's client, not by the Minecraft server. Treat the balance shown there as public information, and make sure the URL is reachable from players' machines (same caveat as the `link` returned by `/initiate`).
+
+Guidelines for the page itself (see [`demo/public/balance.html`](demo/public/balance.html) for a working example):
+
+- The browser window **is** the box — typically ~120×40 GUI pixels. Fill 100% of the viewport with a single panel and scale text with viewport units.
+- A transparent page background (`background: transparent`) lets the game world show through around your panel's rounded corners.
+- The overlay is passive (no mouse/keyboard input reaches it), so the page must **refresh itself** (e.g. poll a JSON endpoint every few seconds).
+- Additionally, the mod reloads the page ~2 seconds after every shop session closes, so a purchase is reflected promptly.
+- If the page **fails to load** (server unreachable, or a non-2xx response), the overlay swaps in a built-in "Failed to load balance" box instead of Chromium's error page, and retries the real URL every 30 seconds (and after each shop session).
 
 ---
 
@@ -78,7 +121,7 @@ At level `2`, only operators and command blocks can run `/shop`. Players can no 
 
 The finishing commands — `/shopFinish`, `/confirmFinish`, `/shopCancel` — are intentionally **not** affected by this setting and remain available to everyone. A player can only use them against a session that already exists, and with `/shop` locked down they cannot create one themselves, so there is nothing to abuse. Lowering or raising `shopCommandPermissionLevel` only gates session initiation.
 
-> Permission levels 2–4 map to vanilla op levels (`/op` grants level 4 by default, configurable via `server.properties` `op-permission-level`). Command blocks always run at level 2, which is why level `2` is the recommended setting for the command-block workflow.
+> Permission levels 2-4 map to vanilla op levels (`/op` grants level 4 by default, configurable via `server.properties` `op-permission-level`). Command blocks always run at level 2, which is why level `2` is the recommended setting for the command-block workflow.
 
 ---
 

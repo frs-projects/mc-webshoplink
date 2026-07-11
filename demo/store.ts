@@ -69,6 +69,24 @@ export function deleteSession(uuid: string): void {
   sessions.delete(uuid);
 }
 
+/**
+ * Best-known currency balance for a player, derived from their most recent
+ * session (the demo has no player database — currency lives in the inventory).
+ * Returns null when the player has never opened a session on this server.
+ */
+export function playerBalance(playerId: string): number | null {
+  let latest: Session | undefined;
+  for (const s of sessions.values()) {
+    if (s.playerId === playerId && (!latest || s.createdAt > latest.createdAt)) {
+      latest = s;
+    }
+  }
+  if (!latest) return null;
+  // After a completed trade the applied result is fresher than the snapshot.
+  if (latest.status === "applied") return computeOrder(latest).balanceAfter;
+  return countCurrency(latest.original.inventory);
+}
+
 // ---------------------------------------------------------------------------
 // Inventory helpers
 // ---------------------------------------------------------------------------
