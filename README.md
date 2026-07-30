@@ -26,6 +26,7 @@ Player ──/shop──▶ WebshopLink (server) ──HTTP──▶ Your shop A
 ## Features
 
 - **In-game shopping** — the web shop renders in a Chromium browser overlaid on the game; no alt-tabbing to an external browser.
+- **Flash-free opening** — one browser is kept alive for the whole session and reused, and the shop is only drawn once the page has painted, so opening a shop never flashes a blank window over the world. Pages can signal readiness explicitly; see [Writing the shop page](WIKI.md#writing-the-shop-page).
 - **Inventory verification** — purchases are rejected if the player's inventory changed between starting the session and confirming, preventing duping/race exploits.
 - **Two-factor session code** — an anti-tampering code is exchanged with your API on every call so sessions can't be forged from outside.
 - **API key support** — every request to your shop API carries a configurable `X-Webshop-Api-Key` header.
@@ -73,7 +74,7 @@ By default anyone can run `/shop`. To restrict it to operators/command blocks (s
 
 ## Documentation
 
-- **[Wiki](WIKI.md)** — server-operator setup: full config reference, the HTTP API your shop must implement, inventory data format, and the security model.
+- **[Wiki](WIKI.md)** — server-operator setup: full config reference, the HTTP API your shop must implement, how to write the shop page, inventory data format, and the security model.
 - **[`demo/`](demo/)** — a small, fully-commented reference shop (Bun + Tailwind) you can run locally to try the mod or learn the contract.
 
 ## License

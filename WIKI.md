@@ -100,6 +100,58 @@ Guidelines for the page itself (see [`demo/public/balance.html`](demo/public/bal
 
 ---
 
+## Writing the shop page
+
+Beyond returning a reachable `link` from `/initiate`, a few properties of the page itself decide whether opening a shop looks seamless.
+
+### How the mod shows your page
+
+The mod keeps **one** Chromium browser alive for the whole session on the server, parked on a transparent blank page. `/shop` does not create a browser — it navigates that existing one. Chromium keeps painting the previous (transparent) frame until the new page has produced one, and the mod additionally refuses to draw the browser until your page is considered ready. So while your page loads the player sees the live game world, not a blank rectangle. (Before 1.9.0 a browser was created per session, which flashed its empty first frame over the world every time.)
+
+"Ready" is decided by the first of these to happen:
+
+1. your page sets `document.title = "webshoplink:ready"` — the explicit handshake, described below;
+2. the document's `load` event fires, plus ~120 ms for the first paint;
+3. 5 seconds elapse (a page that never loads is shown as-is, error page and all).
+
+If the page is still not ready after ~400 ms, a small `Loading shop…` label appears over the world until it is.
+
+### Signal readiness explicitly
+
+Rule 2 only knows that the *document* loaded. If your shop fetches its session data and renders client-side (as most do), `load` fires while the page is still an empty shell, and the player briefly sees that shell. Setting the title once your real content is on screen removes it:
+
+```js
+function signalReady() {
+  document.title = "webshoplink:ready";
+}
+
+// after the first render — two frames: one to lay out, one to paint
+requestAnimationFrame(() => requestAnimationFrame(signalReady));
+```
+
+Set it on your error paths too, otherwise a "session expired" message waits for the timeout. Setting it more than once is harmless; the mod only reacts while a session is opening. The handshake is entirely optional — shops that never set the title keep working on rule 2.
+
+### Declare transparency before anything else
+
+The browser composites your page over the game world, so an opaque page background covers it. Put the transparent background in an **inline `<style>` at the very top of `<head>`**, ahead of every `<link rel="stylesheet">` and `<script>`:
+
+```html
+<head>
+  <meta charset="utf-8" />
+  <style>html, body { background: transparent; }</style>
+  <!-- stylesheets, scripts, everything else after this -->
+</head>
+```
+
+If transparency only arrives with an external stylesheet, the browser paints the default opaque page background for the frames before that stylesheet is applied — a white flash over the world that the mod cannot suppress, because as far as it can tell your page painted exactly what you asked for.
+
+Two related habits worth keeping:
+
+- **Avoid render-blocking third-party assets.** A CDN script or webfont in `<head>` delays your first paint by however long that host takes to answer, and that delay lands squarely in the window the player is waiting through. (The bundled demo uses the Tailwind Play CDN for convenience — a production shop should ship compiled CSS.)
+- **Render something meaningful in the first paint.** With the handshake you control when the page appears, so use it to appear *finished* rather than to appear early.
+
+---
+
 ## Locking down `/shop`
 
 By default any player can run `/shop <type>` from anywhere. If you instead want shops to open only at specific locations — e.g. at a market stall block, an NPC, or a pressure plate — restrict who can *initiate* a session and drive `/shop` yourself from command blocks.

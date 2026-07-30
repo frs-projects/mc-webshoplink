@@ -26,7 +26,11 @@ public final class ClientShopBrowser {
                 }
                 return;
             }
-            mc.setScreen(new ShopBrowserScreen(processId, url));
+            // Navigate before showing the screen: the shared browser keeps painting
+            // its transparent parking page until the shop page is ready, so this
+            // head start is pure win and there is nothing to flash through.
+            ShopBrowserHost.startSession(url);
+            mc.setScreen(new ShopBrowserScreen(processId));
         });
     }
 }

@@ -5,23 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>WebshopLink Demo Shop</title>
     <!--
+      Transparency first, before any other stylesheet or script. The page is
+      rendered in a transparent in-game browser overlaid on the Minecraft world;
+      if the transparent background only arrived with an external stylesheet, the
+      browser would paint the default opaque page background for the frames until
+      that stylesheet loaded — a white flash over the world.
+      NOTE: CSS backdrop-filter cannot blur the game world — the world is not
+      part of the page, so the browser has nothing to blur. Blurring the world
+      must be done on the Minecraft render side (ShopBrowserScreen).
+    -->
+    <style>
+      html,
+      body {
+        background: transparent;
+      }
+    </style>
+    <!--
       Tailwind via the Play CDN keeps this demo a zero-build, single-file page.
       For a production shop you'd compile Tailwind instead (see README).
     -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      /*
-        The page is rendered in a transparent in-game browser overlaid on the
-        Minecraft world, so the document background is transparent and we dim
-        the area behind the floating panel with a semi-transparent fill.
-        NOTE: CSS backdrop-filter cannot blur the game world — the world is not
-        part of the page, so the browser has nothing to blur. Blurring the world
-        must be done on the Minecraft render side (ShopBrowserScreen).
-      */
-      html,
-      body {
-        background: transparent;
-      }
       /* Slim, themed scrollbar so the floating panel feels self-contained. */
       #panel ::-webkit-scrollbar {
         width: 8px;
@@ -61,6 +65,7 @@
         const res = await fetch(`/api/session/${uuid}`);
         if (!res.ok) {
           app.innerHTML = `<p class="text-red-400">Session not found or expired.</p>`;
+          signalReady();
           return;
         }
         state = await res.json();
@@ -102,6 +107,15 @@
           )
           .join(" ");
         return `<div class="mb-1"><span class="${cls} font-semibold">${label}</span> ${pills}</div>`;
+      }
+
+      // The mod keeps its browser hidden until the page says it is painted, so a
+      // half-drawn shop never flashes over the world. Setting this title is the
+      // handshake; without it the mod falls back to the document's load event.
+      function signalReady() {
+        if (document.title !== "webshoplink:ready") {
+          document.title = "webshoplink:ready";
+        }
       }
 
       function render() {
@@ -193,6 +207,9 @@
             </aside>
           </div>
         `;
+
+        // Two frames: one for the browser to lay the new DOM out, one to paint it.
+        requestAnimationFrame(() => requestAnimationFrame(signalReady));
       }
 
       load();

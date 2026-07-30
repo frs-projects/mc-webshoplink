@@ -1,6 +1,5 @@
 package info.rusty.webshoplink.client;
 
-import com.cinemamod.mcef.MCEF;
 import com.cinemamod.mcef.MCEFBrowser;
 import info.rusty.webshoplink.Networking;
 import info.rusty.webshoplink.ShopActionPacket;
@@ -13,41 +12,52 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.UUID;
 
 /**
- * Full-screen in-game browser for a shop session. Renders an MCEF (Chromium)
- * browser into the area above a small Minecraft button bar offering
- * <em>Finish Trade</em> and <em>Cancel</em>. Closing without choosing (ESC)
- * cancels the session.
+ * Full-screen in-game browser for a shop session. Renders the shared MCEF
+ * (Chromium) browser owned by {@link ShopBrowserHost} into the area above a small
+ * Minecraft button bar offering <em>Finish Trade</em> and <em>Cancel</em>. Closing
+ * without choosing (ESC) cancels the session.
+ *
+ * <p>The browser is deliberately <em>not</em> created here: it outlives the screen
+ * so that opening a shop never has to wait for (and flash through) a fresh
+ * Chromium browser's first frame. See {@link ShopBrowserHost}.
  *
  * <p>Client-only: this class references MCEF and is reached exclusively through
  * {@link ClientShopBrowser}, which is only invoked on {@code Dist.CLIENT}.
  */
 public class ShopBrowserScreen extends Screen {
 
-    private static final int BAR_HEIGHT = 28;
+    static final int BAR_HEIGHT = 28;
     private static final int BUTTON_WIDTH = 150;
     private static final int BUTTON_HEIGHT = 20;
+    /**
+     * How long the screen stays silent before admitting the page is slow. Below
+     * this the world is simply left visible, so a fast shop never flashes a
+     * loading message on its way in.
+     */
+    private static final long LOADING_TEXT_DELAY_MILLIS = 400L;
 
     private final UUID processId;
-    private final String url;
+    private final long openedAt = System.currentTimeMillis();
+    /** The session this screen was opened for; see {@link ShopBrowserHost#endSession(long)}. */
+    private final long sessionToken = ShopBrowserHost.currentSessionToken();
 
-    private MCEFBrowser browser;
     /** Guards against sending more than one action (e.g. Finish then a stray Cancel on close). */
     private boolean actionSent = false;
 
-    public ShopBrowserScreen(UUID processId, String url) {
+    public ShopBrowserScreen(UUID processId) {
         super(Component.literal("Shop"));
         this.processId = processId;
-        this.url = url;
+    }
+
+    /** The page is on screen (as opposed to still loading behind the live world). */
+    public boolean isShowingPage() {
+        MCEFBrowser browser = ShopBrowserHost.getBrowser();
+        return browser != null && ShopBrowserHost.isPageReady() && browser.isTextureReady();
     }
 
     @Override
     protected void init() {
         super.init();
-        if (browser == null) {
-            // transparent=true lets the page's transparent CSS background show the
-            // (dimmed/blurred) game world behind the floating shop panel.
-            browser = MCEF.createBrowser(url, true);
-        }
 
         addRenderableWidget(Button.builder(Component.literal("Finish Trade"), b -> sendAndClose(ShopActionPacket.Action.FINISH))
                 .bounds(this.width / 2 - BUTTON_WIDTH - 4, this.height - BUTTON_HEIGHT - 4, BUTTON_WIDTH, BUTTON_HEIGHT)
@@ -76,10 +86,7 @@ public class ShopBrowserScreen extends Screen {
     }
 
     private void resizeBrowser() {
-        if (browser != null) {
-            double guiScale = minecraft.getWindow().getGuiScale();
-            browser.resize((int) (getBrowserWidth() * guiScale), (int) (getBrowserHeight() * guiScale));
-        }
+        ShopBrowserHost.resizeToShopViewport();
     }
 
     @Override
@@ -90,19 +97,20 @@ public class ShopBrowserScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        // No renderBackground() here on purpose: the browser is created transparent
-        // (see init()), and the world keeps rendering behind a non-pause screen, so we
+        // No renderBackground() here on purpose: the browser is transparent (see
+        // ShopBrowserHost), and the world keeps rendering behind a non-pause screen, so we
         // blit the page straight over the live world. Painting the usual dimming
         // gradient first would show through every transparent pixel of the page and
         // defeat the transparency.
-        if (browser != null && browser.isTextureReady()) {
-            ResourceLocation texture = browser.getTextureLocation();
-            if (texture != null) {
-                int w = getBrowserWidth();
-                int h = getBrowserHeight();
-                guiGraphics.blit(texture, getBrowserX(), getBrowserY(), 0.0F, 0.0F, w, h, w, h);
-            }
-        } else {
+        MCEFBrowser browser = ShopBrowserHost.getBrowser();
+        ResourceLocation texture = isShowingPage() ? browser.getTextureLocation() : null;
+        if (texture != null) {
+            int w = getBrowserWidth();
+            int h = getBrowserHeight();
+            guiGraphics.blit(texture, getBrowserX(), getBrowserY(), 0.0F, 0.0F, w, h, w, h);
+        } else if (System.currentTimeMillis() - openedAt >= LOADING_TEXT_DELAY_MILLIS) {
+            // Until the page has painted the world stays visible; only say something
+            // once the wait is long enough that silence would look like a bug.
             guiGraphics.drawCenteredString(this.font, Component.literal("Loading shop…"),
                     this.width / 2, this.height / 2, 0xFFFFFF);
         }
@@ -110,6 +118,11 @@ public class ShopBrowserScreen extends Screen {
     }
 
     // --- input routing to the browser -------------------------------------------------
+
+    /** The shared browser, or {@code null} if MCEF never came up. */
+    private MCEFBrowser browser() {
+        return ShopBrowserHost.getBrowser();
+    }
 
     private int browserX(double x) {
         return (int) ((x - getBrowserX()) * minecraft.getWindow().getGuiScale());
@@ -129,6 +142,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
+        MCEFBrowser browser = browser();
         if (browser == null || !inBrowser(mouseX, mouseY)) {
             return false;
         }
@@ -142,6 +156,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.mouseReleased(mouseX, mouseY, button)) {
             return true;
         }
+        MCEFBrowser browser = browser();
         if (browser == null) {
             return false;
         }
@@ -151,6 +166,7 @@ public class ShopBrowserScreen extends Screen {
 
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
+        MCEFBrowser browser = browser();
         if (browser != null && inBrowser(mouseX, mouseY)) {
             browser.sendMouseMove(browserX(mouseX), browserY(mouseY));
         }
@@ -162,6 +178,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.mouseScrolled(mouseX, mouseY, delta)) {
             return true;
         }
+        MCEFBrowser browser = browser();
         if (browser == null || !inBrowser(mouseX, mouseY)) {
             return false;
         }
@@ -175,6 +192,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
+        MCEFBrowser browser = browser();
         if (browser == null) {
             return false;
         }
@@ -188,6 +206,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.keyReleased(keyCode, scanCode, modifiers)) {
             return true;
         }
+        MCEFBrowser browser = browser();
         if (browser == null) {
             return false;
         }
@@ -200,6 +219,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.charTyped(codePoint, modifiers)) {
             return true;
         }
+        MCEFBrowser browser = browser();
         if (browser == null || codePoint == 0) {
             return false;
         }
@@ -230,10 +250,9 @@ public class ShopBrowserScreen extends Screen {
 
     @Override
     public void removed() {
-        if (browser != null) {
-            browser.close();
-            browser = null;
-        }
+        // The browser outlives the screen — park it on the blank page so the shop
+        // page stops running and the next session starts from a transparent frame.
+        ShopBrowserHost.endSession(sessionToken);
         // A finished trade changes the balance; refresh the overlay once the
         // backend has had a moment to process the checkout.
         BalanceOverlay.scheduleReload(2000);

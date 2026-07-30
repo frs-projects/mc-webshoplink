@@ -52,6 +52,12 @@ public class BalanceOverlay implements IGuiOverlay {
     private volatile boolean loadFailed = false;
     /** True while the bundled "Failed to load balance" page is displayed. */
     private boolean showingFallback = false;
+    /**
+     * Set once any page has finished loading in this browser. Until then the
+     * overlay draws nothing, so a freshly created browser's empty first frame
+     * never flashes in the corner.
+     */
+    private volatile boolean everLoaded = false;
     private long retryAt = 0L;
     private boolean loadHandlerRegistered = false;
 
@@ -87,6 +93,7 @@ public class BalanceOverlay implements IGuiOverlay {
             lastPixelHeight = -1;
             loadFailed = false;
             showingFallback = false;
+            everLoaded = false;
         } else if (!url.equals(currentUrl)) {
             // balanceUrl changed via config reload.
             currentUrl = url;
@@ -131,11 +138,12 @@ public class BalanceOverlay implements IGuiOverlay {
 
         // The full-screen shop browser already covers this corner; drawing the
         // balance box through the shop page's transparent areas is just noise.
-        if (mc.screen instanceof ShopBrowserScreen) {
+        // While the shop page is still loading it covers nothing, so keep drawing.
+        if (mc.screen instanceof ShopBrowserScreen shop && shop.isShowingPage()) {
             return;
         }
 
-        if (!browser.isTextureReady()) {
+        if (!everLoaded || !browser.isTextureReady()) {
             return;
         }
         ResourceLocation texture = browser.getTextureLocation();
@@ -172,6 +180,7 @@ public class BalanceOverlay implements IGuiOverlay {
             lastPixelHeight = -1;
             loadFailed = false;
             showingFallback = false;
+            everLoaded = false;
         }
     }
 
@@ -215,15 +224,19 @@ public class BalanceOverlay implements IGuiOverlay {
                 // (e.g. loading the fallback page over a pending load) — not a failure.
                 if (cefBrowser == browser && frame.isMain() && errorCode != ErrorCode.ERR_ABORTED) {
                     loadFailed = true;
+                    everLoaded = true;
                 }
             }
 
             @Override
             public void onLoadEnd(CefBrowser cefBrowser, CefFrame frame, int httpStatusCode) {
+                if (cefBrowser != browser || !frame.isMain()) {
+                    return;
+                }
+                everLoaded = true;
                 // A non-2xx answer (e.g. 404/500 from the shop server) renders an
                 // error/HTML page we don't control; treat it as a failure too.
-                if (cefBrowser == browser && frame.isMain()
-                        && frame.getURL() != null && frame.getURL().startsWith("http")
+                if (frame.getURL() != null && frame.getURL().startsWith("http")
                         && (httpStatusCode < 200 || httpStatusCode >= 300)) {
                     loadFailed = true;
                 }
