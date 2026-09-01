@@ -1,7 +1,9 @@
 package info.rusty.webshoplink;
 
 import com.mojang.logging.LogUtils;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -43,6 +45,17 @@ public class Webshoplink {
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         LOGGER.info("Webshoplink mod loaded on server side");
+    }
+
+    /**
+     * Push the server-configured balance URL as soon as a player joins, so their
+     * overlay uses this server's page instead of whatever their local config says.
+     */
+    @SubscribeEvent
+    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            Networking.sendBalanceUrl(player);
+        }
     }
 
     @SubscribeEvent

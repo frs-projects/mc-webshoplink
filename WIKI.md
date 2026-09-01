@@ -36,6 +36,9 @@ shopAppliedEndpoint = "/{uuid}/setApplied"
 # Endpoint for cancelling shop processes
 shopCancelEndpoint = "/{uuid}/cancel"
 
+# URL of the balance page pushed to clients; empty = clients use their own client config
+balanceUrl = ""
+
 # Minecraft permission level required to run /shop (0-4). 0 = anyone, 2 = operators/command blocks only.
 shopCommandPermissionLevel = 0
 
@@ -51,6 +54,7 @@ debugVerbosity = "DEFAULT"
 | `apiBaseUrl` | Root of your shop API. Every endpoint below is appended to it. |
 | `apiKey` | Sent as the `X-Webshop-Api-Key` header on **every** request. Leave empty to send an empty key; set it (and validate it server-side) to lock the API down. |
 | `shopEndpoint` / `shopCheckoutEndpoint` / `shopAppliedEndpoint` / `shopCancelEndpoint` | Paths for the four operations. The `{uuid}` placeholder is substituted with the session UUID; if you omit it from the path the UUID is still available in the JSON body. |
+| `balanceUrl` | Balance page the server pushes to every client for the [balance overlay](#balance-overlay). Leave empty to let each client use its own `balanceUrl` from the client config. |
 | `shopCommandPermissionLevel` | Minecraft permission level (0-4) required to run `/shop`. Default `0` (anyone). See [Locking down `/shop`](#locking-down-shop) below. |
 | `debugEnabled` / `debugVerbosity` | Server-console logging. `ALL` prints full serialized inventories — useful when developing your API, noisy in production. |
 
@@ -58,7 +62,7 @@ debugVerbosity = "DEFAULT"
 
 ### Client configuration
 
-The client generates a second, purely client-side config at `config/webshoplink-client.toml`. It only controls the optional [balance overlay](#balance-overlay):
+The client generates a second, purely client-side config at `config/webshoplink-client.toml`. It only controls the optional [balance overlay](#balance-overlay). Its `balanceUrl` is a **fallback**: if the server sets a `balanceUrl` of its own, that one wins (see [Balance overlay](#balance-overlay)).
 
 ```toml
 # Show the shop balance as a small always-visible overlay (requires MCEF)
@@ -76,7 +80,7 @@ balanceHeight = 40
 balanceMargin = 4
 ```
 
-The overlay is **on by default**, but points at `localhost` — since this is a client config, ship it with your modpack so every player gets your real `balanceUrl` (a copy preconfigured for the demo is at [`demo/webshoplink-client.toml`](demo/webshoplink-client.toml)). Players who don't want the overlay can turn it off locally.
+The overlay is **on by default**, but points at `localhost`. The simplest way to give players the right URL is to set `balanceUrl` in the **server** config — it is pushed to every client on join and overrides this value, so nothing has to be shipped with the modpack. Otherwise ship this client config with your modpack (a copy preconfigured for the demo is at [`demo/webshoplink-client.toml`](demo/webshoplink-client.toml)). Players who don't want the overlay can turn it off locally.
 
 ---
 
@@ -87,6 +91,8 @@ When `balanceDisplayEnabled` is on, the mod keeps a **small transparent in-game 
 ```
 GET {balanceUrl}{playerUuid}          e.g.  GET http://localhost:8080/balance/069a79f4-44e9-...
 ```
+
+**Where the URL comes from:** when the player joins, the server sends its own `balanceUrl` (server config) to the client, and the overlay uses it. If the server leaves that value empty — or isn't running this mod — the client falls back to `balanceUrl` from its client config. Reloading the server config re-pushes the new URL to everyone online, and the pushed URL is dropped when the player disconnects, so each server only affects its own session.
 
 If `balanceUrl` contains a `{uuid}` placeholder, it is substituted instead of appended. That is the entire contract — a plain `GET`, **no authentication, no API key, no session**: the page is fetched directly by the player's client, not by the Minecraft server. Treat the balance shown there as public information, and make sure the URL is reachable from players' machines (same caveat as the `link` returned by `/initiate`).
 

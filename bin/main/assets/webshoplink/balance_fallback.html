@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+  Shown by the balance overlay when the configured balance page fails to load
+  (shop server down/unreachable). Bundled in the mod jar and handed to the
+  browser as a data: URL; the mod retries the real page periodically.
+  Styled to match demo/public/balance.html: the browser window IS the box.
+-->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Balance unavailable</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: transparent;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    .box {
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(248, 113, 113, 0.5);
+      border-radius: 12px;
+      color: #fca5a5;
+      font-size: min(30vh, 9vw);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">Failed to load balance</div>
+</body>
+</html>

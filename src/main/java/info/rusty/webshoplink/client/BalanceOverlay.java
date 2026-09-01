@@ -61,6 +61,13 @@ public class BalanceOverlay implements IGuiOverlay {
     private long retryAt = 0L;
     private boolean loadHandlerRegistered = false;
 
+    /**
+     * Balance URL pushed by the server, or {@code null}/blank when the server has
+     * none configured (or has no mod installed at all). Written from the network
+     * thread via {@link #setServerUrl(String)}, read on the render thread.
+     */
+    private static volatile String serverUrl;
+
     private BalanceOverlay() {
     }
 
@@ -95,7 +102,7 @@ public class BalanceOverlay implements IGuiOverlay {
             showingFallback = false;
             everLoaded = false;
         } else if (!url.equals(currentUrl)) {
-            // balanceUrl changed via config reload.
+            // URL changed: config reload, or the server pushed its own balanceUrl.
             currentUrl = url;
             loadFailed = false;
             showingFallback = false;
@@ -163,8 +170,17 @@ public class BalanceOverlay implements IGuiOverlay {
         guiGraphics.blit(texture, x, y, 0.0F, 0.0F, width, height, width, height);
     }
 
+    /**
+     * Applies the balance URL sent by the server. A blank value clears it, so the
+     * overlay falls back to the local client config.
+     */
+    public static void setServerUrl(String url) {
+        serverUrl = (url == null || url.isBlank()) ? null : url;
+    }
+
     private static String buildUrl(String playerUuid) {
-        String base = ClientConfig.balanceUrl;
+        String pushed = serverUrl;
+        String base = (pushed != null) ? pushed : ClientConfig.balanceUrl;
         if (base.contains("{uuid}")) {
             return base.replace("{uuid}", playerUuid);
         }
@@ -256,6 +272,8 @@ public class BalanceOverlay implements IGuiOverlay {
 
     @SubscribeEvent
     static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        // The pushed URL belongs to the server we just left, not to the next one.
+        serverUrl = null;
         INSTANCE.close();
     }
 }

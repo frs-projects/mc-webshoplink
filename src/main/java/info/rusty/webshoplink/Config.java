@@ -42,6 +42,13 @@ public class Config {
             .comment("Endpoint for marking shop processes as applied")
             .define("shopAppliedEndpoint", "/{uuid}/setApplied");
 
+    private static final ForgeConfigSpec.ConfigValue<String> BALANCE_URL = BUILDER
+            .comment("URL of the balance page pushed to clients for their balance overlay.",
+                    "The player's UUID is appended to this URL, or substituted for a {uuid}",
+                    "placeholder if the URL contains one. Must be reachable from the player's",
+                    "client. Leave empty to let each client use its own balanceUrl client config.")
+            .define("balanceUrl", "");
+
     // Command permission configuration
     private static final ForgeConfigSpec.IntValue SHOP_COMMAND_PERMISSION_LEVEL = BUILDER
             .comment("Minecraft permission level required to run /shop (initiate a shopping session).",
@@ -69,6 +76,7 @@ public class Config {
     public static String shopCancelEndpoint;
     public static String shopCheckoutEndpoint;
     public static String shopAppliedEndpoint;
+    public static String balanceUrl;
     public static int shopCommandPermissionLevel;
     public static Set<Item> moneyItems;
     public static boolean debugEnabled;
@@ -98,10 +106,14 @@ public class Config {
         shopCancelEndpoint = SHOP_CANCEL_ENDPOINT.get();
         shopCheckoutEndpoint = SHOP_CHECKOUT_ENDPOINT.get();
         shopAppliedEndpoint = SHOP_APPLIED_ENDPOINT.get();
+        balanceUrl = BALANCE_URL.get();
         shopCommandPermissionLevel = SHOP_COMMAND_PERMISSION_LEVEL.get();
 
         // Load debug configuration
         debugEnabled = DEBUG_ENABLED.get();
         debugVerbosity = DEBUG_VERBOSITY.get();
+
+        // A reload can change the URL while players are online; push the new value.
+        Networking.sendBalanceUrlToAll();
     }
 }

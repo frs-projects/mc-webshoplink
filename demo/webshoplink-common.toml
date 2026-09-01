@@ -12,6 +12,10 @@ shopCheckoutEndpoint = "/{uuid}/checkout"
 shopAppliedEndpoint = "/{uuid}/setApplied"
 shopCancelEndpoint = "/{uuid}/cancel"
 
+# Balance page pushed to clients for the HUD overlay. With this set, players
+# don't need webshoplink-client.toml — the server tells them where the page is.
+balanceUrl = "http://localhost:8080/balance/"
+
 # Turn these on to see the full request/response traffic in the server log,
 # which pairs nicely with the demo server's own console output.
 debugEnabled = true

@@ -1,10 +1,12 @@
 package info.rusty.webshoplink;
 
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 /**
  * Forge network channel between the server-side shop logic and the client-side
@@ -17,7 +19,10 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class Networking {
 
-    private static final String PROTOCOL_VERSION = "1";
+    // Bumped whenever the set of packets changes, so a client running an older
+    // version of this mod is rejected at login instead of receiving a packet id
+    // it cannot decode. Clients without the mod are still accepted (acceptMissing).
+    private static final String PROTOCOL_VERSION = "2";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(Webshoplink.MODID, "main"),
@@ -37,6 +42,8 @@ public final class Networking {
                 OpenBrowserPacket::encode, OpenBrowserPacket::decode, OpenBrowserPacket::handle);
         CHANNEL.registerMessage(id++, ShopActionPacket.class,
                 ShopActionPacket::encode, ShopActionPacket::decode, ShopActionPacket::handle);
+        CHANNEL.registerMessage(id++, BalanceUrlPacket.class,
+                BalanceUrlPacket::encode, BalanceUrlPacket::decode, BalanceUrlPacket::handle);
     }
 
     /**
@@ -52,5 +59,29 @@ public final class Networking {
      */
     public static void openBrowser(ServerPlayer player, java.util.UUID processId, String url) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenBrowserPacket(processId, url));
+    }
+
+    /**
+     * Pushes the server-configured balance URL to the given player. Sending a blank
+     * URL is meaningful: it tells the client this server has none configured, so the
+     * overlay falls back to the client's own config value.
+     */
+    public static void sendBalanceUrl(ServerPlayer player) {
+        if (!isClientReady(player)) {
+            return;
+        }
+        String url = (Config.balanceUrl != null) ? Config.balanceUrl : "";
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new BalanceUrlPacket(url));
+    }
+
+    /** Pushes the server-configured balance URL to every player with the mod installed. */
+    public static void sendBalanceUrlToAll() {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) {
+            return;
+        }
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            sendBalanceUrl(player);
+        }
     }
 }
