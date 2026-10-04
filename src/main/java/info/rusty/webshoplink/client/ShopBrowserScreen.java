@@ -173,11 +173,19 @@ public class ShopBrowserScreen extends Screen {
         super.mouseMoved(mouseX, mouseY);
     }
 
+    //? if >=1.20.2 {
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
+        if (super.mouseScrolled(mouseX, mouseY, scrollX, delta)) {
+            return true;
+        }
+    //?} else {
+    /*@Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         if (super.mouseScrolled(mouseX, mouseY, delta)) {
             return true;
         }
+    *///?}
         MCEFBrowser browser = browser();
         if (browser == null || !inBrowser(mouseX, mouseY)) {
             return false;
@@ -233,7 +241,7 @@ public class ShopBrowserScreen extends Screen {
     private void sendAndClose(ShopActionPacket.Action action) {
         if (!actionSent) {
             actionSent = true;
-            Networking.CHANNEL.sendToServer(new ShopActionPacket(processId, action));
+            Networking.sendToServer(new ShopActionPacket(processId, action));
         }
         minecraft.setScreen(null);
     }
@@ -243,7 +251,7 @@ public class ShopBrowserScreen extends Screen {
         // ESC / close without pressing a button cancels the session.
         if (!actionSent) {
             actionSent = true;
-            Networking.CHANNEL.sendToServer(new ShopActionPacket(processId, ShopActionPacket.Action.CANCEL));
+            Networking.sendToServer(new ShopActionPacket(processId, ShopActionPacket.Action.CANCEL));
         }
         super.onClose();
     }
@@ -259,11 +267,18 @@ public class ShopBrowserScreen extends Screen {
         super.removed();
     }
 
+    // Intentionally empty: the transparent browser fills the screen over the live
+    // world, so we never want the default screen dimming (or, from 1.20.5, the menu
+    // blur, which super.render() would otherwise apply itself). See render().
+    //? if >=1.20.2 {
     @Override
-    public void renderBackground(GuiGraphics guiGraphics) {
-        // Intentionally empty: the transparent browser fills the screen over the live
-        // world, so we never want the default screen dimming. See render().
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
     }
+    //?} else {
+    /*@Override
+    public void renderBackground(GuiGraphics guiGraphics) {
+    }
+    *///?}
 
     @Override
     public boolean isPauseScreen() {

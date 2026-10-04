@@ -237,13 +237,13 @@ public class DataTypes {
                 countField.set(itemData, stack.getCount());
                 
                 // Convert NBT data to a proper JSON structure if present
-                if (stack.hasTag()) {
+                if (StackNbt.has(stack)) {
                     // Log the original NBT
                     DebugLogger.log("Serializing NBT for item " + itemKey.toString(), Config.DebugVerbosity.DEFAULT);
                     NbtDebugUtils.logItemStackNbt(stack, "Original item before serialization");
                     
                     // Use our custom NBT serializer to convert to JsonObject
-                    JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(stack.getTag());
+                    JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(StackNbt.get(stack));
                     nbtField.set(itemData, nbtJson);
                     
                     // Log the serialized NBT JSON
@@ -253,10 +253,10 @@ public class DataTypes {
                     // Test round-trip conversion
                     try {
                         CompoundTag roundTrip = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(nbtJson);
-                        boolean tagsEqual = roundTrip.equals(stack.getTag());
+                        boolean tagsEqual = roundTrip.equals(StackNbt.get(stack));
                         DebugLogger.log("Round-trip NBT conversion test: " + (tagsEqual ? "PASSED" : "FAILED"), Config.DebugVerbosity.DEFAULT);
                         if (!tagsEqual) {
-                            DebugLogger.log("Original tag: " + stack.getTag(), Config.DebugVerbosity.DEFAULT);
+                            DebugLogger.log("Original tag: " + StackNbt.get(stack), Config.DebugVerbosity.DEFAULT);
                             DebugLogger.log("Round-trip tag: " + roundTrip, Config.DebugVerbosity.DEFAULT);
                         }
                     } catch (Exception e) {
@@ -325,13 +325,13 @@ public class DataTypes {
         public ItemStack getItemStackData() {
             try {
                 // Parse the item id to get the correct item
-                String[] parts = itemId.split(":", 2);
-                if (parts.length != 2) {
+                net.minecraft.resources.ResourceLocation resourceLocation =
+                        itemId.indexOf(':') > 0 ? net.minecraft.resources.ResourceLocation.tryParse(itemId) : null;
+                if (resourceLocation == null) {
                     LOGGER.error("Invalid item ID format: {}", itemId);
                     return ItemStack.EMPTY;
                 }
                 
-                net.minecraft.resources.ResourceLocation resourceLocation = new net.minecraft.resources.ResourceLocation(parts[0], parts[1]);
                 net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(resourceLocation);
                 
                 if (item == net.minecraft.world.item.Items.AIR) {
@@ -351,7 +351,7 @@ public class DataTypes {
                         
                         // Use the NbtSerializer to properly convert the JsonObject to a CompoundTag
                         CompoundTag nbtData = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(nbt);
-                        stack.setTag(nbtData);
+                        StackNbt.set(stack, nbtData);
                         
                         // Log for debugging
                         DebugLogger.log("Applied NBT data to item " + itemId + ": " + nbtData, Config.DebugVerbosity.DEFAULT);

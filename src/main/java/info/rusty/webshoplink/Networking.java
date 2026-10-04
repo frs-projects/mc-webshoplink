@@ -1,49 +1,69 @@
 package info.rusty.webshoplink;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.network.simple.SimpleChannel;
-import net.minecraftforge.server.ServerLifecycleHooks;
+
+import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
- * Forge network channel between the server-side shop logic and the client-side
- * in-game browser.
+ * The messages between the server-side shop logic and the client-side in-game browser,
+ * independent of how a loader carries them. Each loader's entry point binds a {@link Transport}
+ * (a Forge {@code SimpleChannel}, or NeoForge payloads) that registers every entry of
+ * {@link #MESSAGES} and delivers it to its handler on the receiving side's main thread,
+ * rejecting messages that arrive in the wrong direction.
  *
- * <p>The channel is registered as <em>optional</em> (it accepts a missing protocol
- * version on the other end), so vanilla clients or clients without this mod can
- * still connect to the server. Whether a given player can actually open the browser
- * is then checked at runtime with {@link #isClientReady(ServerPlayer)}.
+ * <p>The channel is <em>optional</em> (it accepts a missing mod on the other end), so vanilla
+ * clients or clients without this mod can still connect to the server. Whether a given player
+ * can actually open the browser is then checked at runtime with {@link #isClientReady(ServerPlayer)}.
  */
 public final class Networking {
 
     // Bumped whenever the set of packets changes, so a client running an older
     // version of this mod is rejected at login instead of receiving a packet id
-    // it cannot decode. Clients without the mod are still accepted (acceptMissing).
-    private static final String PROTOCOL_VERSION = "2";
+    // it cannot decode. Clients without the mod are still accepted.
+    public static final String PROTOCOL_VERSION = "2";
 
-    public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(Webshoplink.MODID, "main"),
-            () -> PROTOCOL_VERSION,
-            NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION),
-            NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION));
+    public enum Direction { TO_CLIENT, TO_SERVER }
+
+    /**
+     * One message type. {@code handler} gets the sending player for {@link Direction#TO_SERVER}
+     * messages and {@code null} for {@link Direction#TO_CLIENT} ones.
+     */
+    public record Message<T>(String name, Class<T> type, Direction direction,
+                             BiConsumer<T, FriendlyByteBuf> encoder,
+                             Function<FriendlyByteBuf, T> decoder,
+                             BiConsumer<T, ServerPlayer> handler) {
+    }
+
+    /** How messages travel; supplied by the loader. */
+    public interface Transport {
+        /** Whether the player's client has this mod's channel, so a message can be delivered. */
+        boolean isRemotePresent(ServerPlayer player);
+
+        void sendToPlayer(ServerPlayer player, Object message);
+
+        void sendToServer(Object message);
+    }
+
+    // Order is the Forge discriminator order, so it is part of the wire format: append only.
+    public static final List<Message<?>> MESSAGES = List.of(
+            new Message<>("open_browser", OpenBrowserPacket.class, Direction.TO_CLIENT,
+                    OpenBrowserPacket::encode, OpenBrowserPacket::decode, (msg, sender) -> OpenBrowserPacket.handle(msg)),
+            new Message<>("shop_action", ShopActionPacket.class, Direction.TO_SERVER,
+                    ShopActionPacket::encode, ShopActionPacket::decode, ShopActionPacket::handle),
+            new Message<>("balance_url", BalanceUrlPacket.class, Direction.TO_CLIENT,
+                    BalanceUrlPacket::encode, BalanceUrlPacket::decode, (msg, sender) -> BalanceUrlPacket.handle(msg)));
+
+    private static Transport transport;
 
     private Networking() {
     }
 
-    /**
-     * Registers all packets. Must be called once during mod construction.
-     */
-    public static void register() {
-        int id = 0;
-        CHANNEL.registerMessage(id++, OpenBrowserPacket.class,
-                OpenBrowserPacket::encode, OpenBrowserPacket::decode, OpenBrowserPacket::handle);
-        CHANNEL.registerMessage(id++, ShopActionPacket.class,
-                ShopActionPacket::encode, ShopActionPacket::decode, ShopActionPacket::handle);
-        CHANNEL.registerMessage(id++, BalanceUrlPacket.class,
-                BalanceUrlPacket::encode, BalanceUrlPacket::decode, BalanceUrlPacket::handle);
+    public static void bind(Transport loaderTransport) {
+        transport = loaderTransport;
     }
 
     /**
@@ -51,14 +71,19 @@ public final class Networking {
      *         browser channel) installed, so a browser packet can be delivered.
      */
     public static boolean isClientReady(ServerPlayer player) {
-        return CHANNEL.isRemotePresent(player.connection.connection);
+        return transport.isRemotePresent(player);
     }
 
     /**
      * Tells the given player's client to open the in-game shop browser at {@code url}.
      */
     public static void openBrowser(ServerPlayer player, java.util.UUID processId, String url) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenBrowserPacket(processId, url));
+        transport.sendToPlayer(player, new OpenBrowserPacket(processId, url));
+    }
+
+    /** Client side: reports a button press in the browser screen to the server. */
+    public static void sendToServer(ShopActionPacket packet) {
+        transport.sendToServer(packet);
     }
 
     /**
@@ -71,12 +96,12 @@ public final class Networking {
             return;
         }
         String url = (Config.balanceUrl != null) ? Config.balanceUrl : "";
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new BalanceUrlPacket(url));
+        transport.sendToPlayer(player, new BalanceUrlPacket(url));
     }
 
     /** Pushes the server-configured balance URL to every player with the mod installed. */
     public static void sendBalanceUrlToAll() {
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        MinecraftServer server = Webshoplink.server();
         if (server == null) {
             return;
         }

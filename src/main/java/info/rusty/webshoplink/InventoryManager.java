@@ -29,7 +29,7 @@ public class InventoryManager {
         for (int i = 0; i < mainSize; i++) {
             mainInventory[i] = inventory.getItem(i).copy();
             // Debug item NBT
-            if (!inventory.getItem(i).isEmpty() && inventory.getItem(i).hasTag()) {
+            if (!inventory.getItem(i).isEmpty() && StackNbt.has(inventory.getItem(i))) {
                 NbtDebugUtils.logItemStackNbt(inventory.getItem(i), "Main inventory slot " + i);
             }
         }
@@ -37,7 +37,7 @@ public class InventoryManager {
         for (int i = 0; i < inventory.armor.size(); i++) {
             armorInventory[i] = inventory.armor.get(i).copy();
             // Debug item NBT
-            if (!inventory.armor.get(i).isEmpty() && inventory.armor.get(i).hasTag()) {
+            if (!inventory.armor.get(i).isEmpty() && StackNbt.has(inventory.armor.get(i))) {
                 NbtDebugUtils.logItemStackNbt(inventory.armor.get(i), "Armor slot " + i);
             }
         }
@@ -45,7 +45,7 @@ public class InventoryManager {
         for (int i = 0; i < inventory.offhand.size(); i++) {
             offhandInventory[i] = inventory.offhand.get(i).copy();
             // Debug item NBT
-            if (!inventory.offhand.get(i).isEmpty() && inventory.offhand.get(i).hasTag()) {
+            if (!inventory.offhand.get(i).isEmpty() && StackNbt.has(inventory.offhand.get(i))) {
                 NbtDebugUtils.logItemStackNbt(inventory.offhand.get(i), "Offhand slot " + i);
             }
         }
@@ -53,7 +53,7 @@ public class InventoryManager {
         for (int i = 0; i < player.getEnderChestInventory().getContainerSize(); i++) {
             enderChest[i] = player.getEnderChestInventory().getItem(i).copy();
             // Debug item NBT
-            if (!player.getEnderChestInventory().getItem(i).isEmpty() && player.getEnderChestInventory().getItem(i).hasTag()) {
+            if (!player.getEnderChestInventory().getItem(i).isEmpty() && StackNbt.has(player.getEnderChestInventory().getItem(i))) {
                 NbtDebugUtils.logItemStackNbt(player.getEnderChestInventory().getItem(i), "Ender chest slot " + i);
             }
         }
@@ -146,14 +146,14 @@ public class InventoryManager {
                         shouldUpdate = true;
                     } 
                     // Compare NBT data
-                    else if ((currentStack.hasTag() && item.getNbt() == null) || 
-                             (!currentStack.hasTag() && item.getNbt() != null)) {
+                    else if ((StackNbt.has(currentStack) && item.getNbt() == null) || 
+                             (!StackNbt.has(currentStack) && item.getNbt() != null)) {
                         shouldUpdate = true;
                         DebugLogger.log("NBT mismatch: one has NBT, other doesn't", Config.DebugVerbosity.DEFAULT);
                     }
-                    else if (currentStack.hasTag() && item.getNbt() != null) {
+                    else if (StackNbt.has(currentStack) && item.getNbt() != null) {
                         // Convert current NBT to JSON for comparison
-                        JsonObject currentNbtJson = (JsonObject) NbtSerializer.serializeNbt(currentStack.getTag());
+                        JsonObject currentNbtJson = (JsonObject) NbtSerializer.serializeNbt(StackNbt.get(currentStack));
                         shouldUpdate = !currentNbtJson.equals(item.getNbt());
                         
                         if (shouldUpdate) {
@@ -205,14 +205,14 @@ public class InventoryManager {
                         shouldUpdate = true;
                     } 
                     // Compare NBT data
-                    else if ((currentStack.hasTag() && item.getNbt() == null) || 
-                             (!currentStack.hasTag() && item.getNbt() != null)) {
+                    else if ((StackNbt.has(currentStack) && item.getNbt() == null) || 
+                             (!StackNbt.has(currentStack) && item.getNbt() != null)) {
                         shouldUpdate = true;
                         DebugLogger.log("E-Chest NBT mismatch: one has NBT, other doesn't", Config.DebugVerbosity.DEFAULT);
                     }
-                    else if (currentStack.hasTag() && item.getNbt() != null) {
+                    else if (StackNbt.has(currentStack) && item.getNbt() != null) {
                         // Convert current NBT to JSON for comparison
-                        JsonObject currentNbtJson = (JsonObject) NbtSerializer.serializeNbt(currentStack.getTag());
+                        JsonObject currentNbtJson = (JsonObject) NbtSerializer.serializeNbt(StackNbt.get(currentStack));
                         shouldUpdate = !currentNbtJson.equals(item.getNbt());
                         
                         if (shouldUpdate) {
@@ -349,9 +349,9 @@ public class InventoryManager {
      */
     private static String getItemKey(ItemStack stack) {
         String itemKey = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        if (stack.hasTag()) {
+        if (StackNbt.has(stack)) {
             // Use our custom NBT serializer to get a consistent JSON representation
-            JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(stack.getTag());
+            JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(StackNbt.get(stack));
             // Log for debugging
             DebugLogger.log("Generated item key for " + itemKey + " with NBT: " + nbtJson, Config.DebugVerbosity.ALL);
             // Add NBT hash to make the key unique for different NBT data
@@ -388,7 +388,7 @@ public class InventoryManager {
             String currentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(current.getItem()).toString();
             DebugLogger.log(slotType + " slot " + slotIndex + ": Current is " + currentId + 
                     " x" + current.getCount() + ", new is empty", Config.DebugVerbosity.DEFAULT);
-            if (current.hasTag()) {
+            if (StackNbt.has(current)) {
                 NbtDebugUtils.logItemStackNbt(current, "Current item being removed");
             }
             return;
@@ -411,14 +411,14 @@ public class InventoryManager {
         }
         
         // Compare NBT data
-        if (current.hasTag() && itemData.getNbt() != null) {
+        if (StackNbt.has(current) && itemData.getNbt() != null) {
             DebugLogger.log("Both items have NBT data, comparing...", Config.DebugVerbosity.DEFAULT);
             NbtDebugUtils.logItemStackNbt(current, "Current item");
             // Use our enhanced NBT debugging
             NbtDebugUtils.logJsonNbt(itemData.getNbt(), "New item from API");
             
             // Convert current NBT to JSON for comparison
-            JsonObject currentNbtJson = (JsonObject) NbtSerializer.serializeNbt(current.getTag());
+            JsonObject currentNbtJson = (JsonObject) NbtSerializer.serializeNbt(StackNbt.get(current));
             boolean nbtMatch = currentNbtJson.equals(itemData.getNbt());
             
             if (nbtMatch) {
@@ -429,18 +429,18 @@ public class InventoryManager {
                 ItemStack testStack = current.copy();
                 try {
                     CompoundTag testNbt = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(itemData.getNbt());
-                    testStack.setTag(testNbt);
+                    StackNbt.set(testStack, testNbt);
                     NbtDebugUtils.logItemStackNbt(testStack, "Test applying new NBT");
                     
                     // Compare original item to test item
-                    boolean wouldMatch = testStack.getTag().equals(current.getTag());
+                    boolean wouldMatch = java.util.Objects.equals(StackNbt.get(testStack), StackNbt.get(current));
                     DebugLogger.log("After applying new NBT data, items would " + 
                         (wouldMatch ? "MATCH" : "STILL DIFFER"), Config.DebugVerbosity.DEFAULT);
                 } catch (Exception e) {
                     DebugLogger.logError("Failed to apply test NBT: " + e.getMessage(), e);
                 }
             }
-        } else if (current.hasTag()) {
+        } else if (StackNbt.has(current)) {
             DebugLogger.log("Current item has NBT but new item doesn't", Config.DebugVerbosity.DEFAULT);
             NbtDebugUtils.logItemStackNbt(current, "Current item");
         } else if (itemData.getNbt() != null) {

@@ -2,13 +2,8 @@ package info.rusty.webshoplink.client;
 
 import com.cinemamod.mcef.MCEF;
 import com.cinemamod.mcef.MCEFBrowser;
-import info.rusty.webshoplink.Webshoplink;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import org.cef.browser.CefBrowser;
 import org.cef.browser.CefFrame;
 import org.cef.handler.CefDisplayHandlerAdapter;
@@ -40,9 +35,9 @@ import java.util.Base64;
  *   <li>a hard timeout, so a broken page can never wedge the screen shut.</li>
  * </ol>
  *
- * <p>Client-only: references MCEF and is reached exclusively from client code.
+ * <p>Client-only: references MCEF and is reached exclusively from client code. Each loader
+ * forwards login/logout to {@link #onLoggingIn()} and {@link #onLoggingOut()}.
  */
-@Mod.EventBusSubscriber(modid = Webshoplink.MODID, value = Dist.CLIENT)
 public final class ShopBrowserHost {
 
     /** Title a shop page may set to declare itself painted and ready to be shown. */
@@ -258,13 +253,11 @@ public final class ShopBrowserHost {
                 && frame.getURL() != null && !frame.getURL().startsWith("data:");
     }
 
-    @SubscribeEvent
-    static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+    public static void onLoggingIn() {
         warmUp();
     }
 
-    @SubscribeEvent
-    static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+    public static void onLoggingOut() {
         close();
     }
 }

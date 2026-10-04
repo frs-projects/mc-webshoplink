@@ -2,6 +2,7 @@ package info.rusty.webshoplink;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -13,8 +14,6 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
@@ -37,12 +36,11 @@ public class ShopCommands {
     // Store active shopping processes - Map<UUID, ShopProcess>
     private static final Map<UUID, ShopProcess> ACTIVE_SHOP_PROCESSES = new ConcurrentHashMap<>();
     
-    @SubscribeEvent
-    public static void registerCommands(RegisterCommandsEvent event) {
+    public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         LOGGER.info("Registering shop commands");
         
         // Register "shop" command with optional label parameter
-        event.getDispatcher().register(
+        dispatcher.register(
             Commands.literal("shop")
                 // Configurable: 0 = anyone, 2 = operators/command blocks only. Evaluated lazily
                 // so the predicate always reflects the current config value.
@@ -59,7 +57,7 @@ public class ShopCommands {
         );
         
         // Register "shopFinish" command
-        event.getDispatcher().register(
+        dispatcher.register(
             Commands.literal("shopFinish")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
                 .then(Commands.argument("uuid", StringArgumentType.string())
@@ -69,7 +67,7 @@ public class ShopCommands {
         );
         
         // Register "confirmFinish" command
-        event.getDispatcher().register(
+        dispatcher.register(
             Commands.literal("confirmFinish")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
                 .then(Commands.argument("uuid", StringArgumentType.string())
@@ -79,7 +77,7 @@ public class ShopCommands {
         );
 
         // Register "shopCancel" command
-        event.getDispatcher().register(
+        dispatcher.register(
             Commands.literal("shopCancel")
                 .requires(source -> source.hasPermission(0)) // Anyone can use
                 .then(Commands.argument("uuid", StringArgumentType.string())

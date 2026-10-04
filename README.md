@@ -1,6 +1,6 @@
 # WebshopLink
 
-A Minecraft Forge mod that lets players browse and use an external web shop **inside an in-game browser window**, then have the purchased items applied straight to their inventory.
+A Minecraft Forge / NeoForge mod that lets players browse and use an external web shop **inside an in-game browser window**, then have the purchased items applied straight to their inventory.
 
 > Throughout the docs this project is referred to as a "mod", even where a plugin version is discussed — the functionality is the same regardless.
 
@@ -42,8 +42,12 @@ Player ──/shop──▶ WebshopLink (server) ──HTTP──▶ Your shop A
 | **Client** | WebshopLink mod **+** [MCEF](https://www.curseforge.com/minecraft/mc-mods/mcef) |
 | **Elsewhere** | An external web shop implementing the [WebshopLink API](WIKI.md) |
 
-- Minecraft **1.20.1**, Forge **47.x**
-- MCEF **2.2.0+** (client only — the dedicated server never loads it)
+- Minecraft **1.20.1** with Forge **47.x**, or Minecraft **1.21.1** with NeoForge **21.1.x**
+- MCEF **2.2.0+** for the same loader (client only — the dedicated server never loads it)
+
+Each loader has its own jar: `webshoplink-<version>+1.20.1-forge.jar` or
+`webshoplink-<version>+1.21.1-neoforge.jar`. On 1.21.1 the `nbt` field of an item carries the
+item's data components instead of legacy NBT (see [NBT notes](WIKI.md#nbt-notes)).
 
 Players whose client is missing the mod/MCEF will be told to install them when they run `/shop`.
 
@@ -71,6 +75,30 @@ By default anyone can run `/shop`. To restrict it to operators/command blocks (s
 **Client (each player)**
 1. Install [MCEF](https://www.curseforge.com/minecraft/mc-mods/mcef).
 2. Install the WebshopLink mod.
+
+## Building
+
+The build is the same framework as the other FRS-Projects mods:
+[Stonecutter](https://stonecutter.kikugie.dev/) with Architectury Loom, one source tree, and one
+node per Minecraft version and loader. Gradle 9.7 runs its daemon on **Java 25**, so a JDK 25
+must be installed where Gradle can find it; each node still compiles to its own Java level.
+
+| Task | What it does |
+|---|---|
+| `./gradlew buildAll` | Builds every node |
+| `./gradlew checkAll` | Runs every node's checks, including `verifyModMetadata` |
+| `./gradlew collectJars` | Copies every node's jar into `build/libs` |
+| `./gradlew :1.20.1-forge:runClient` | Dev client for one node (`versions/<node>/run/client`) |
+| `./gradlew "Set active project to 1.20.1-forge"` | Switches the working tree to another node |
+
+Shared code lives in `src/main/java/info/rusty/webshoplink` (`client/` is client-only); the
+loader entry points, config registration, network transport and client event wiring live in
+`forge/` and `neoforge/` (gated with `//? if forge` / `//? if neoforge`). Minecraft API
+differences are `//? if` branches in the shared files, the main one being `StackNbt` (item NBT
+versus data components). The config classes are written against NeoForge's `ModConfigSpec`;
+Stonecutter renames it to `ForgeConfigSpec` for the Forge node (`stonecutter.gradle.kts`). The
+working tree is the `1.21.1-neoforge` node, so the Forge files are committed commented out.
+Pushing a `v*` tag that matches `mod.version` publishes a GitHub Release with every node's jar.
 
 ## Documentation
 

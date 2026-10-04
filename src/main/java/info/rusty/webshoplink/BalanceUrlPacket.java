@@ -1,11 +1,6 @@
 package info.rusty.webshoplink;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
-
-import java.util.function.Supplier;
 
 /**
  * Server &rarr; client: the balance page URL this server wants the overlay to show.
@@ -30,13 +25,9 @@ public class BalanceUrlPacket {
         return new BalanceUrlPacket(buf.readUtf());
     }
 
-    public static void handle(BalanceUrlPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
-        NetworkEvent.Context ctx = ctxSupplier.get();
-        // The client class is only referenced inside the DistExecutor lambda, so the
-        // dedicated server never classloads it (nor MCEF).
-        ctx.enqueueWork(() ->
-                DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                        () -> () -> info.rusty.webshoplink.client.BalanceOverlay.setServerUrl(msg.url)));
-        ctx.setPacketHandled(true);
+    // Client main thread; the transport only delivers this message on a client. The client
+    // class is referenced fully qualified, so the dedicated server never classloads it (nor MCEF).
+    static void handle(BalanceUrlPacket msg) {
+        info.rusty.webshoplink.client.BalanceOverlay.setServerUrl(msg.url);
     }
 }

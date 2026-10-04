@@ -1,66 +1,53 @@
 package info.rusty.webshoplink;
 
+import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.logging.LogUtils;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
-@Mod(Webshoplink.MODID)
-public class Webshoplink {
+/**
+ * Everything the mod does in response to game events, for every loader. The loader entry
+ * points in {@code info.rusty.webshoplink.forge} and {@code info.rusty.webshoplink.neoforge}
+ * register the configs and network transport and forward their events here.
+ */
+public final class Webshoplink {
 
-    public static final String MODID = "webshoplink";
+    /** Filled in from {@code mod.id} by Stonecutter. */
+    public static final String MODID = /*$ mod_id*/ "webshoplink";
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public Webshoplink() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+    // The running server, for code outside an event (config reloads, item data encoding).
+    private static volatile MinecraftServer server;
 
-        // Register the commonSetup method for modloading
-        modEventBus.addListener(this::commonSetup);
-
-        // Register ourselves for server and other game events we are interested in
-        MinecraftForge.EVENT_BUS.register(this);
-
-        // Register our mod's ForgeConfigSpec so that Forge can create and load the config file for us
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
-        // Client-only UI settings (balance overlay). Never loaded on the dedicated server.
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
+    private Webshoplink() {
     }
 
-    private void commonSetup(final FMLCommonSetupEvent event) {
-        // Register the network channel/packets used to drive the in-game browser.
-        Networking.register();
-        LOGGER.info("Webshoplink mod initialized");
+    /** The running server, or {@code null} when none is (yet). */
+    public static MinecraftServer server() {
+        return server;
     }
 
-    @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event) {
+    public static void onServerStarting(MinecraftServer startingServer) {
+        server = startingServer;
         LOGGER.info("Webshoplink mod loaded on server side");
+    }
+
+    public static void onServerStopped() {
+        server = null;
     }
 
     /**
      * Push the server-configured balance URL as soon as a player joins, so their
      * overlay uses this server's page instead of whatever their local config says.
      */
-    @SubscribeEvent
-    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) {
-            Networking.sendBalanceUrl(player);
-        }
+    public static void onPlayerLoggedIn(ServerPlayer player) {
+        Networking.sendBalanceUrl(player);
     }
 
-    @SubscribeEvent
-    public void onRegisterCommands(RegisterCommandsEvent event) {
+    public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         LOGGER.info("Registering shop commands");
-        ShopCommands.registerCommands(event);
+        ShopCommands.registerCommands(dispatcher);
     }
 }

@@ -1,12 +1,8 @@
 package info.rusty.webshoplink;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /**
  * Server &rarr; client: open the in-game shop browser at the given URL.
@@ -30,13 +26,9 @@ public class OpenBrowserPacket {
         return new OpenBrowserPacket(buf.readUUID(), buf.readUtf());
     }
 
-    public static void handle(OpenBrowserPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
-        NetworkEvent.Context ctx = ctxSupplier.get();
-        // Run on the client thread. The client class is only referenced inside the
-        // DistExecutor lambda, so the dedicated server never classloads it (nor MCEF).
-        ctx.enqueueWork(() ->
-                DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                        () -> () -> info.rusty.webshoplink.client.ClientShopBrowser.open(msg.processId, msg.url)));
-        ctx.setPacketHandled(true);
+    // Client main thread; the transport only delivers this message on a client. The client
+    // class is referenced fully qualified, so the dedicated server never classloads it (nor MCEF).
+    static void handle(OpenBrowserPacket msg) {
+        info.rusty.webshoplink.client.ClientShopBrowser.open(msg.processId, msg.url);
     }
 }

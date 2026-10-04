@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "${forge_range}"
+loaderVersion = "${javafml_range}"
 license = "${license}"
 issueTrackerURL = "${source}/issues"
 
@@ -10,20 +10,19 @@ displayName = "${name}"
 description = '''${description}'''
 authors = "${authors}"
 displayURL = "${source}"
-# Has both server and client components (the in-game browser). The network channel accepts a
-# missing mod on the other end, so vanilla clients can still join; /shop then falls back.
-displayTest = "MATCH_VERSION"
+# Has both server and client components (the in-game browser). The payloads are optional, so
+# vanilla clients can still join; /shop then falls back.
 
 [[dependencies.${id}]]
-modId = "forge"
-mandatory = true
-versionRange = "${forge_range}"
+modId = "neoforge"
+type = "required"
+versionRange = "${neoforge_range}"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.${id}]]
 modId = "minecraft"
-mandatory = true
+type = "required"
 versionRange = "${minecraft_range_forgelike}"
 ordering = "NONE"
 side = "BOTH"
@@ -32,7 +31,7 @@ side = "BOTH"
 # dedicated server never touches it.
 [[dependencies.${id}]]
 modId = "mcef"
-mandatory = true
+type = "required"
 versionRange = "${mcef_range}"
 ordering = "AFTER"
 side = "CLIENT"

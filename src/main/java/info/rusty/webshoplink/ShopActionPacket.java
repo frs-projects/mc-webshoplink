@@ -2,10 +2,8 @@ package info.rusty.webshoplink;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /**
  * Client &rarr; server: the player pressed a button in the in-game browser screen.
@@ -34,18 +32,14 @@ public class ShopActionPacket {
         return new ShopActionPacket(buf.readUUID(), buf.readEnum(Action.class));
     }
 
-    public static void handle(ShopActionPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
-        NetworkEvent.Context ctx = ctxSupplier.get();
-        ctx.enqueueWork(() -> {
-            ServerPlayer player = ctx.getSender();
-            if (player == null) {
-                return;
-            }
-            switch (msg.action) {
-                case FINISH -> ShopCommands.finishAndConfirm(player, msg.processId);
-                case CANCEL -> ShopCommands.cancelShop(player, msg.processId);
-            }
-        });
-        ctx.setPacketHandled(true);
+    // Server main thread; player is the sender.
+    static void handle(ShopActionPacket msg, ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        switch (msg.action) {
+            case FINISH -> ShopCommands.finishAndConfirm(player, msg.processId);
+            case CANCEL -> ShopCommands.cancelShop(player, msg.processId);
+        }
     }
 }

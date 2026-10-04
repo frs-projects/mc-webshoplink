@@ -54,8 +54,8 @@ public class NbtDebugUtils {
         String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         DebugLogger.log(label + ": Item ID = " + itemId + ", Count = " + stack.getCount(), Config.DebugVerbosity.DEFAULT);
         
-        if (stack.hasTag()) {
-            logNbtDetails(stack.getTag(), label);
+        if (StackNbt.has(stack)) {
+            logNbtDetails(StackNbt.get(stack), label);
         } else {
             DebugLogger.log(label + ": No NBT data", Config.DebugVerbosity.DEFAULT);
         }

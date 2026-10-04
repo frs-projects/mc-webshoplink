@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    # Pushing a tag such as v1.9.1 also publishes a GitHub Release with every node's jar.
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    name: ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - 1.20.1-forge
+          - 1.21.1-neoforge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      # `check` runs verifyModMetadata, which is the guard against shipping a jar
+      # that builds but contains no loader metadata.
+      - run: ./gradlew ":${{ matrix.node }}:build" ":${{ matrix.node }}:check"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webshoplink-${{ matrix.node }}
+          path: versions/${{ matrix.node }}/build/libs/webshoplink-*.jar
+
+  release:
+    name: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [matrix]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      # A tag that disagrees with mod.version would publish jars named after a different
+      # version than the release, so refuse it rather than ship the mismatch.
+      - name: Check the tag matches mod.version
+        run: |
+          version=$(grep '^mod.version=' gradle.properties | cut -d= -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match mod.version=$version"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: webshoplink-*
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Sources jars stay on the workflow run; the release carries what servers install.
+          find dist -name 'webshoplink-*.jar' ! -name '*-sources.jar' -print0 \
+            | xargs -0 gh release create "$GITHUB_REF_NAME" --title "WebshopLink $GITHUB_REF_NAME" \
+                --generate-notes

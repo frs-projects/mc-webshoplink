@@ -3,16 +3,9 @@ package info.rusty.webshoplink.client;
 import com.cinemamod.mcef.MCEF;
 import com.cinemamod.mcef.MCEFBrowser;
 import info.rusty.webshoplink.ClientConfig;
-import info.rusty.webshoplink.Webshoplink;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.client.gui.overlay.ForgeGui;
-import net.minecraftforge.client.gui.overlay.IGuiOverlay;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import org.cef.browser.CefBrowser;
 import org.cef.browser.CefFrame;
 import org.cef.handler.CefLoadHandler;
@@ -31,9 +24,11 @@ import java.util.Base64;
  * <p>The browser is created lazily on first render and kept alive across
  * screens so the page isn't re-fetched every frame. It is closed on logout or
  * when the overlay is disabled via config.
+ *
+ * <p>Each loader registers it as a HUD layer drawn above everything else and forwards
+ * {@link #render} and {@link #onLoggingOut()} to it.
  */
-@Mod.EventBusSubscriber(modid = Webshoplink.MODID, value = Dist.CLIENT)
-public class BalanceOverlay implements IGuiOverlay {
+public class BalanceOverlay {
 
     public static final BalanceOverlay INSTANCE = new BalanceOverlay();
 
@@ -80,8 +75,7 @@ public class BalanceOverlay implements IGuiOverlay {
         INSTANCE.reloadAt = System.currentTimeMillis() + delayMillis;
     }
 
-    @Override
-    public void render(ForgeGui gui, GuiGraphics guiGraphics, float partialTick, int screenWidth, int screenHeight) {
+    public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         if (!ClientConfig.balanceDisplayEnabled) {
             close();
             return;
@@ -270,8 +264,7 @@ public class BalanceOverlay implements IGuiOverlay {
         });
     }
 
-    @SubscribeEvent
-    static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+    public static void onLoggingOut() {
         // The pushed URL belongs to the server we just left, not to the next one.
         serverUrl = null;
         INSTANCE.close();

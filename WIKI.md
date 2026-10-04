@@ -317,6 +317,13 @@ Both the inventory the mod sends (`/initiate`) and the inventory it expects back
 
 The mod's `NbtSerializer` works in plain JSON: numbers become numeric NBT tags, strings become `StringTag`, arrays become `ListTag`, objects become `CompoundTag`. Whole numbers come back as `IntTag`/`LongTag`, so a value vanilla expects as a `short` (e.g. an enchantment `lvl`) may not round-trip identically. A custom `display.Name` is the most reliable thing to verify visually — the demo's "Debug Blade" exercises this.
 
+On **Minecraft 1.21.1** (NeoForge) items no longer have NBT; they carry data components. There
+the `nbt` object is the item's *component patch* (only what differs from the item's defaults),
+encoded the way `/give` writes it: keys are component ids such as `minecraft:custom_data`,
+`minecraft:enchantments` or `minecraft:custom_name`. An item sent by a 1.20.1 server therefore
+looks different from the same item sent by a 1.21.1 server, and a shop serving both must store
+and return the shape that matches the server it is talking to.
+
 ---
 
 ## Security model

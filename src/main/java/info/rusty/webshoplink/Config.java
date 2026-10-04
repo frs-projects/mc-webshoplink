@@ -1,48 +1,51 @@
 package info.rusty.webshoplink;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
-import net.minecraftforge.registries.ForgeRegistries;
+//? if neoforge {
+import net.neoforged.neoforge.common.ModConfigSpec;
+//?} else {
+/*import net.minecraftforge.common.ModConfigSpec;
+*///?}
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Mod.EventBusSubscriber(modid = Webshoplink.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
+// Server/common settings (config/webshoplink-common.toml). The loader registers SPEC and calls
+// load() whenever the file is loaded or reloaded. Written against NeoForge's ModConfigSpec;
+// Stonecutter renames it to ModConfigSpec for the Forge node (see stonecutter.gradle.kts).
 public class Config {
-    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
+    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     // Server API configuration
-    private static final ForgeConfigSpec.ConfigValue<String> API_BASE_URL = BUILDER
+    private static final ModConfigSpec.ConfigValue<String> API_BASE_URL = BUILDER
             .comment("Base URL for the shop API")
             .define("apiBaseUrl", "http://localhost:8080/api/shop");
 
-    private static final ForgeConfigSpec.ConfigValue<String> API_KEY = BUILDER
+    private static final ModConfigSpec.ConfigValue<String> API_KEY = BUILDER
             .comment("API key sent as the X-Webshop-Api-Key header on every request to the shop API")
             .define("apiKey", "");
 
-    private static final ForgeConfigSpec.ConfigValue<String> SHOP_ENDPOINT = BUILDER
+    private static final ModConfigSpec.ConfigValue<String> SHOP_ENDPOINT = BUILDER
             .comment("Endpoint for initiating shop processes")
             .define("shopEndpoint", "/initiate");
 
-    private static final ForgeConfigSpec.ConfigValue<String> SHOP_CANCEL_ENDPOINT = BUILDER
+    private static final ModConfigSpec.ConfigValue<String> SHOP_CANCEL_ENDPOINT = BUILDER
             .comment("Endpoint for cancelling shop processes")
             .define("shopCancelEndpoint", "/{uuid}/cancel");
 
-    private static final ForgeConfigSpec.ConfigValue<String> SHOP_CHECKOUT_ENDPOINT = BUILDER
+    private static final ModConfigSpec.ConfigValue<String> SHOP_CHECKOUT_ENDPOINT = BUILDER
             .comment("Endpoint for checking out shop processes")
             .define("shopCheckoutEndpoint", "/{uuid}/checkout");
             
-    private static final ForgeConfigSpec.ConfigValue<String> SHOP_APPLIED_ENDPOINT = BUILDER
+    private static final ModConfigSpec.ConfigValue<String> SHOP_APPLIED_ENDPOINT = BUILDER
             .comment("Endpoint for marking shop processes as applied")
             .define("shopAppliedEndpoint", "/{uuid}/setApplied");
 
-    private static final ForgeConfigSpec.ConfigValue<String> BALANCE_URL = BUILDER
+    private static final ModConfigSpec.ConfigValue<String> BALANCE_URL = BUILDER
             .comment("URL of the balance page pushed to clients for their balance overlay.",
                     "The player's UUID is appended to this URL, or substituted for a {uuid}",
                     "placeholder if the URL contains one. Must be reachable from the player's",
@@ -50,7 +53,7 @@ public class Config {
             .define("balanceUrl", "");
 
     // Command permission configuration
-    private static final ForgeConfigSpec.IntValue SHOP_COMMAND_PERMISSION_LEVEL = BUILDER
+    private static final ModConfigSpec.IntValue SHOP_COMMAND_PERMISSION_LEVEL = BUILDER
             .comment("Minecraft permission level required to run /shop (initiate a shopping session).",
                     "0 = anyone, 1 = moderator, 2 = gamemaster/operator (also command blocks), 3 = admin, 4 = owner.",
                     "Set to 2 to lock shops down so only operators or command blocks can open them, e.g. via",
@@ -60,15 +63,15 @@ public class Config {
             .defineInRange("shopCommandPermissionLevel", 0, 0, 4);
 
     // Debug configuration
-    private static final ForgeConfigSpec.BooleanValue DEBUG_ENABLED = BUILDER
+    private static final ModConfigSpec.BooleanValue DEBUG_ENABLED = BUILDER
             .comment("Enable debug logging")
             .define("debugEnabled", false);
             
-    private static final ForgeConfigSpec.EnumValue<DebugVerbosity> DEBUG_VERBOSITY = BUILDER
+    private static final ModConfigSpec.EnumValue<DebugVerbosity> DEBUG_VERBOSITY = BUILDER
             .comment("Debug verbosity level: MINIMAL (basic info), DEFAULT (standard info), ALL (detailed info including inventory contents)")
             .defineEnum("debugVerbosity", DebugVerbosity.DEFAULT);
 
-    static final ForgeConfigSpec SPEC = BUILDER.build();
+    public static final ModConfigSpec SPEC = BUILDER.build();
 
     public static String apiBaseUrl;
     public static String apiKey;
@@ -92,14 +95,10 @@ public class Config {
     }
 
     private static boolean validateItemName(final Object obj) {
-        return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(ResourceLocation.tryParse(itemName));
+        return obj instanceof final String itemName && BuiltInRegistries.ITEM.containsKey(ResourceLocation.tryParse(itemName));
     }
 
-    @SubscribeEvent
-    static void onLoad(final ModConfigEvent event) {
-        if (event.getConfig().getSpec() != SPEC) {
-            return;
-        }
+    public static void load() {
         apiBaseUrl = API_BASE_URL.get();
         apiKey = API_KEY.get();
         shopEndpoint = SHOP_ENDPOINT.get();
