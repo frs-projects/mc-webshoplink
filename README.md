@@ -4,7 +4,7 @@ A Minecraft Forge / NeoForge mod that lets players browse and use an external we
 
 > Throughout the docs this project is referred to as a "mod", even where a plugin version is discussed — the functionality is the same regardless.
 
-> **WebshopLink only handles the in-game side.** The actual shop (catalog, pricing, what items a player gets) lives in an external web service that you run and that speaks WebshopLink's HTTP protocol. See the [Wiki](WIKI.md) for the contract, and [`demo/`](demo/) for a working reference implementation.
+> **WebshopLink only handles the in-game side.** The actual shop (catalog, pricing, what items a player gets) lives in an external web service that you run and that speaks WebshopLink's HTTP protocol. See the [Wiki](WIKI.md) for the contract, and [`shop-demo`](https://github.com/frs-projects/shop-demo) for a working reference implementation.
 
 ## How it works
 
@@ -103,7 +103,7 @@ Pushing a `v*` tag that matches `mod.version` publishes a GitHub Release with ev
 ## Documentation
 
 - **[Wiki](WIKI.md)** — server-operator setup: full config reference, the HTTP API your shop must implement, how to write the shop page, inventory data format, and the security model.
-- **[`demo/`](demo/)** — a small, fully-commented reference shop (Bun + Tailwind) you can run locally to try the mod or learn the contract.
+- **[`shop-demo`](https://github.com/frs-projects/shop-demo)** — a small, fully-commented reference shop (Bun + Tailwind) you can run locally to try the mod or learn the contract.
 
 ## License
 

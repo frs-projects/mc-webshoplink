@@ -9,7 +9,7 @@ WebshopLink itself never decides prices, stock, or what a player receives. It on
 - fetches the resulting inventory from your API and applies it (after verifying nothing changed in the meantime),
 - optionally renders your shop's balance page as a small always-on HUD overlay (see [Balance overlay](#balance-overlay)).
 
-Everything shop-specific lives in **your** web service. A complete, commented reference implementation (Bun + Tailwind) is in [`demo/`](demo/) — run it locally to see the whole protocol end to end.
+Everything shop-specific lives in **your** web service. A complete, commented reference implementation (Bun + Tailwind) is in [`shop-demo`](https://github.com/frs-projects/shop-demo) — run it locally to see the whole protocol end to end.
 
 ---
 
@@ -80,7 +80,7 @@ balanceHeight = 40
 balanceMargin = 4
 ```
 
-The overlay is **on by default**, but points at `localhost`. The simplest way to give players the right URL is to set `balanceUrl` in the **server** config — it is pushed to every client on join and overrides this value, so nothing has to be shipped with the modpack. Otherwise ship this client config with your modpack (a copy preconfigured for the demo is at [`demo/webshoplink-client.toml`](demo/webshoplink-client.toml)). Players who don't want the overlay can turn it off locally.
+The overlay is **on by default**, but points at `localhost`. The simplest way to give players the right URL is to set `balanceUrl` in the **server** config — it is pushed to every client on join and overrides this value, so nothing has to be shipped with the modpack. Otherwise ship this client config with your modpack (a copy preconfigured for the demo is at [`webshoplink-client.toml`](https://github.com/frs-projects/shop-demo/blob/main/webshoplink-client.toml)). Players who don't want the overlay can turn it off locally.
 
 ---
 
@@ -96,7 +96,7 @@ GET {balanceUrl}{playerUuid}          e.g.  GET http://localhost:8080/balance/06
 
 If `balanceUrl` contains a `{uuid}` placeholder, it is substituted instead of appended. That is the entire contract — a plain `GET`, **no authentication, no API key, no session**: the page is fetched directly by the player's client, not by the Minecraft server. Treat the balance shown there as public information, and make sure the URL is reachable from players' machines (same caveat as the `link` returned by `/initiate`).
 
-Guidelines for the page itself (see [`demo/public/balance.html`](demo/public/balance.html) for a working example):
+Guidelines for the page itself (see [`public/balance.html`](https://github.com/frs-projects/shop-demo/blob/main/public/balance.html) for a working example):
 
 - The browser window **is** the box — typically ~120×40 GUI pixels. Fill 100% of the viewport with a single panel and scale text with viewport units.
 - A transparent page background (`background: transparent`) lets the game world show through around your panel's rounded corners.
@@ -153,7 +153,7 @@ If transparency only arrives with an external stylesheet, the browser paints the
 
 Two related habits worth keeping:
 
-- **Avoid render-blocking third-party assets.** A CDN script or webfont in `<head>` delays your first paint by however long that host takes to answer, and that delay lands squarely in the window the player is waiting through. (The bundled demo uses the Tailwind Play CDN for convenience — a production shop should ship compiled CSS.)
+- **Avoid render-blocking third-party assets.** A CDN script or webfont in `<head>` delays your first paint by however long that host takes to answer, and that delay lands squarely in the window the player is waiting through. (The demo shop uses the Tailwind Play CDN for convenience — a production shop should ship compiled CSS.)
 - **Render something meaningful in the first paint.** With the handshake you control when the page appears, so use it to appear *finished* rather than to appear early.
 
 ---
@@ -337,4 +337,4 @@ and return the shape that matches the server it is talking to.
 
 ## Reference implementation
 
-[`demo/`](demo/) is a self-contained shop implementing this contract, with its own [README](demo/README.md) covering setup, a flow diagram, and a `simulate.ts` that drives the protocol without Minecraft. Start there when building your own integration — copy [`demo/webshoplink-common.toml`](demo/webshoplink-common.toml) into your server's `config/` to point the mod at it.
+[`shop-demo`](https://github.com/frs-projects/shop-demo) is a self-contained shop implementing this contract, with its own [README](https://github.com/frs-projects/shop-demo#readme) covering setup, a flow diagram, and a `simulate.ts` that drives the protocol without Minecraft. Start there when building your own integration — copy [`webshoplink-common.toml`](https://github.com/frs-projects/shop-demo/blob/main/webshoplink-common.toml) into your server's `config/` to point the mod at it.
