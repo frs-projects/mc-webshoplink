@@ -1,6 +1,7 @@
 //? if forge {
 /*package info.rusty.webshoplink.forge;
 
+import info.rusty.webshoplink.Networking;
 import info.rusty.webshoplink.client.BalanceOverlay;
 import info.rusty.webshoplink.client.ShopBrowserHost;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
@@ -27,6 +28,7 @@ final class ForgeClient {
 
     private static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
         ShopBrowserHost.onLoggingIn();
+        Networking.sendClientHello();
     }
 
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {

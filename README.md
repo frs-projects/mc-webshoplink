@@ -10,7 +10,7 @@ A Minecraft Forge / NeoForge mod that lets players browse and use an external we
 
 1. A player runs `/shop <type>` in game.
 2. WebshopLink (server side) sends the player's current inventory to your shop API and gets back a session URL.
-3. The URL opens in a **full-screen in-game browser** (rendered with [MCEF](https://github.com/CinemaMod/mcef)) floating over the game world, with a small button bar at the bottom.
+3. The URL opens in a **full-screen in-game browser** (rendered with [Rinku](https://modrinth.com/mod/rinku), formerly MCEF) floating over the game world, with a small button bar at the bottom.
 4. The player builds their cart on the web page, then clicks **Finish Trade**.
 5. WebshopLink fetches the resulting inventory from your API, verifies the player's inventory hasn't changed since the session started, and applies it. Closing the window (or **Cancel** / ESC) cancels the session.
 
@@ -39,17 +39,17 @@ Player ──/shop──▶ WebshopLink (server) ──HTTP──▶ Your shop A
 | Side | Required |
 |---|---|
 | **Server** | WebshopLink mod |
-| **Client** | WebshopLink mod **+** [MCEF](https://www.curseforge.com/minecraft/mc-mods/mcef) |
+| **Client** | WebshopLink mod **+** [Rinku](https://modrinth.com/mod/rinku) |
 | **Elsewhere** | An external web shop implementing the [WebshopLink API](WIKI.md) |
 
 - Minecraft **1.20.1** with Forge **47.x**, or Minecraft **1.21.1** with NeoForge **21.1.x**
-- MCEF **2.2.0+** for the same loader (client only — the dedicated server never loads it)
+- Rinku **3.0.0+** (formerly MCEF) for the same loader (client only — the dedicated server never loads it)
 
 Each loader has its own jar: `webshoplink-<version>+1.20.1-forge.jar` or
 `webshoplink-<version>+1.21.1-neoforge.jar`. On 1.21.1 the `nbt` field of an item carries the
 item's data components instead of legacy NBT (see [NBT notes](WIKI.md#nbt-notes)).
 
-Players whose client is missing the mod/MCEF will be told to install them when they run `/shop`.
+Players whose client is missing the mod/Rinku will be told to install them when they run `/shop`.
 
 ## Commands
 
@@ -73,7 +73,7 @@ By default anyone can run `/shop`. To restrict it to operators/command blocks (s
 4. Restart.
 
 **Client (each player)**
-1. Install [MCEF](https://www.curseforge.com/minecraft/mc-mods/mcef).
+1. Install [Rinku](https://modrinth.com/mod/rinku).
 2. Install the WebshopLink mod.
 
 ## Building

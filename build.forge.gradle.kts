@@ -7,11 +7,6 @@ loom {
     silentMojangMappingsLicense()
 }
 
-repositories {
-    // MCEF (Minecraft Chromium Embedded Framework) - provides the in-game browser.
-    maven("https://keksuccino.github.io/maven/") { name = "Keksuccino" }
-}
-
 dependencies {
     minecraft("com.mojang:minecraft:${property("deps.minecraft")}")
     // Minecraft ships unobfuscated from the 26.x line on, so Mojang no longer
@@ -24,7 +19,8 @@ dependencies {
     "forge"("net.minecraftforge:forge:${property("deps.forge")}")
     // Client-only at runtime (the dedicated server never classloads the browser code), but
     // the client screen classes compile against it. A mod jar, so Loom remaps it.
-    "modImplementation"("de.keksuccino:mcef-forge:${property("deps.mcef")}-${property("deps.minecraft")}")
+    // Rinku (formerly MCEF) provides the in-game Chromium browser; published on Modrinth's Maven.
+    "modImplementation"("maven.modrinth:rinku:${property("deps.rinku")}-${property("deps.minecraft")}-forge")
 }
 
 loom {

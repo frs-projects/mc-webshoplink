@@ -28,11 +28,11 @@ versionRange = "${minecraft_range_forgelike}"
 ordering = "NONE"
 side = "BOTH"
 
-# MCEF provides the in-game Chromium browser. Only required on the client; the
+# Rinku (formerly MCEF) provides the in-game Chromium browser. Only required on the client; the
 # dedicated server never touches it.
 [[dependencies.${id}]]
-modId = "mcef"
+modId = "rinku"
 mandatory = true
-versionRange = "${mcef_range}"
+versionRange = "${rinku_range}"
 ordering = "AFTER"
 side = "CLIENT"

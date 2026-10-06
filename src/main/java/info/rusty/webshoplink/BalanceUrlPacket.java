@@ -26,7 +26,7 @@ public class BalanceUrlPacket {
     }
 
     // Client main thread; the transport only delivers this message on a client. The client
-    // class is referenced fully qualified, so the dedicated server never classloads it (nor MCEF).
+    // class is referenced fully qualified, so the dedicated server never classloads it (nor Rinku).
     static void handle(BalanceUrlPacket msg) {
         info.rusty.webshoplink.client.BalanceOverlay.setServerUrl(msg.url);
     }

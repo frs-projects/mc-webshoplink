@@ -42,8 +42,10 @@ final class ForgeNetworking implements Networking.Transport {
     }
 
     @Override
-    public boolean isRemotePresent(ServerPlayer player) {
-        return channel.isRemotePresent(player.connection.connection);
+    public boolean isServerPresent() {
+        // A server without the channel just ignores the packet, so there is nothing to guard
+        // against, and Forge's presence check is not trusted (see Networking.READY_CLIENTS).
+        return true;
     }
 
     @Override

@@ -1,7 +1,7 @@
 package info.rusty.webshoplink.client;
 
-import com.cinemamod.mcef.MCEF;
-import com.cinemamod.mcef.MCEFBrowser;
+import de.keksuccino.rinku.Rinku;
+import de.keksuccino.rinku.RinkuBrowser;
 import info.rusty.webshoplink.ClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -18,7 +18,7 @@ import java.util.Base64;
 
 /**
  * Small always-visible HUD element rendering the balance web page (the same
- * MCEF browser used for the shop, just tiny and non-interactive) anchored to a
+ * Rinku browser used for the shop, just tiny and non-interactive) anchored to a
  * configurable screen corner. Disabled by default; see {@link ClientConfig}.
  *
  * <p>The browser is created lazily on first render and kept alive across
@@ -35,7 +35,7 @@ public class BalanceOverlay {
     /** How long to wait before retrying the real page after showing the fallback. */
     private static final long RETRY_INTERVAL_MILLIS = 30_000L;
 
-    private MCEFBrowser browser;
+    private RinkuBrowser browser;
     /** The balance page we want to show (never the fallback data: URL). */
     private String currentUrl;
     private int lastPixelWidth = -1;
@@ -81,14 +81,14 @@ public class BalanceOverlay {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || !MCEF.isInitialized()) {
+        if (mc.player == null || !Rinku.isInitialized()) {
             return;
         }
 
         String url = buildUrl(mc.player.getUUID().toString());
         if (browser == null) {
             registerLoadHandler();
-            browser = MCEF.createBrowser(url, true);
+            browser = Rinku.createBrowser(url, true);
             currentUrl = url;
             lastPixelWidth = -1;
             lastPixelHeight = -1;
@@ -147,7 +147,7 @@ public class BalanceOverlay {
         if (!everLoaded || !browser.isTextureReady()) {
             return;
         }
-        ResourceLocation texture = browser.getTextureLocation();
+        ResourceLocation texture = browser.getTextureIdentifier();
         if (texture == null) {
             return;
         }
@@ -216,7 +216,7 @@ public class BalanceOverlay {
     }
 
     /**
-     * MCEF's client fans load events out to every browser it owns (including the
+     * Rinku's client fans load events out to every browser it owns (including the
      * full-screen shop), so the handler filters for this overlay's browser. CEF
      * invokes it on its own thread; it only flips the volatile flag and leaves
      * all loadURL calls to the render thread.
@@ -226,7 +226,7 @@ public class BalanceOverlay {
             return;
         }
         loadHandlerRegistered = true;
-        MCEF.getClient().addLoadHandler(new CefLoadHandler() {
+        Rinku.getClient().addLoadHandler(new CefLoadHandler() {
             @Override
             public void onLoadError(CefBrowser cefBrowser, CefFrame frame, ErrorCode errorCode,
                                     String errorText, String failedUrl) {

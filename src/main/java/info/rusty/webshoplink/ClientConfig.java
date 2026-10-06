@@ -16,7 +16,7 @@ public class ClientConfig {
 
     private static final ModConfigSpec.BooleanValue BALANCE_DISPLAY_ENABLED = BUILDER
             .comment("Show the shop balance as a small always-visible overlay.",
-                    "Renders the web page at balanceUrl in a tiny in-game browser box (requires MCEF).")
+                    "Renders the web page at balanceUrl in a tiny in-game browser box (requires Rinku).")
             .define("balanceDisplayEnabled", true);
 
     private static final ModConfigSpec.ConfigValue<String> BALANCE_URL = BUILDER

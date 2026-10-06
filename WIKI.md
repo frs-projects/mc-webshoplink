@@ -65,7 +65,7 @@ debugVerbosity = "DEFAULT"
 The client generates a second, purely client-side config at `config/webshoplink-client.toml`. It only controls the optional [balance overlay](#balance-overlay). Its `balanceUrl` is a **fallback**: if the server sets a `balanceUrl` of its own, that one wins (see [Balance overlay](#balance-overlay)).
 
 ```toml
-# Show the shop balance as a small always-visible overlay (requires MCEF)
+# Show the shop balance as a small always-visible overlay (requires Rinku)
 balanceDisplayEnabled = true
 
 # URL of the balance page; the player's UUID is appended (or replaces {uuid})
@@ -86,7 +86,7 @@ The overlay is **on by default**, but points at `localhost`. The simplest way to
 
 ## Balance overlay
 
-When `balanceDisplayEnabled` is on, the mod keeps a **small transparent in-game browser** (the same MCEF browser used for the shop, just tiny and non-interactive) docked in the configured screen corner while the player is in a world. It simply loads:
+When `balanceDisplayEnabled` is on, the mod keeps a **small transparent in-game browser** (the same Rinku browser used for the shop, just tiny and non-interactive) docked in the configured screen corner while the player is in a world. It simply loads:
 
 ```
 GET {balanceUrl}{playerUuid}          e.g.  GET http://localhost:8080/balance/069a79f4-44e9-...

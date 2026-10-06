@@ -1,6 +1,7 @@
 //? if neoforge {
 package info.rusty.webshoplink.neoforge;
 
+import info.rusty.webshoplink.ClientHelloPacket;
 import info.rusty.webshoplink.Networking;
 import info.rusty.webshoplink.Webshoplink;
 import net.minecraft.network.FriendlyByteBuf;
@@ -63,9 +64,12 @@ final class NeoForgeNetworking implements Networking.Transport {
     }
 
     @Override
-    public boolean isRemotePresent(ServerPlayer player) {
-        // Every message shares one negotiation, so the client-bound browser payload stands for all.
-        return player.connection.hasChannel(TYPES.get(Networking.MESSAGES.get(0).type()));
+    public boolean isServerPresent() {
+        // Sending a payload the server never negotiated throws on NeoForge, so check first. The
+        // client class is referenced fully qualified, so a dedicated server never classloads it.
+        net.minecraft.client.multiplayer.ClientPacketListener connection =
+                net.minecraft.client.Minecraft.getInstance().getConnection();
+        return connection != null && connection.hasChannel(TYPES.get(ClientHelloPacket.class));
     }
 
     @Override

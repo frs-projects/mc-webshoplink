@@ -86,7 +86,7 @@ tasks.named<ProcessResources>("processResources") {
         "javafml_range" to (propOrNull("deps.javafml.range") ?: "[1,)"),
         "forge" to (propOrNull("deps.forge") ?: ""),
         "forge_range" to (propOrNull("deps.forge.range") ?: ""),
-        "mcef_range" to (propOrNull("deps.mcef.range") ?: ""),
+        "rinku_range" to (propOrNull("deps.rinku.range") ?: ""),
     )
     inputs.properties(tokens)
     val allMetadata = listOf("fabric.mod.json", "META-INF/neoforge.mods.toml", "META-INF/mods.toml")

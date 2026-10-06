@@ -48,7 +48,7 @@ public final class WebshoplinkMod {
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         // Client-only UI settings (balance overlay). Never loaded on the dedicated server.
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
-        // A separate class, so a dedicated server never loads the client-only types (nor MCEF).
+        // A separate class, so a dedicated server never loads the client-only types (nor Rinku).
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ForgeClient.register(modEventBus);
         }
@@ -86,9 +86,9 @@ public final class WebshoplinkMod {
     }
 
     @SubscribeEvent
-    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+    public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            Webshoplink.onPlayerLoggedIn(player);
+            Webshoplink.onPlayerLoggedOut(player);
         }
     }
 

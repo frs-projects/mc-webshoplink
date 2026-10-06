@@ -27,7 +27,7 @@ public class OpenBrowserPacket {
     }
 
     // Client main thread; the transport only delivers this message on a client. The client
-    // class is referenced fully qualified, so the dedicated server never classloads it (nor MCEF).
+    // class is referenced fully qualified, so the dedicated server never classloads it (nor Rinku).
     static void handle(OpenBrowserPacket msg) {
         info.rusty.webshoplink.client.ClientShopBrowser.open(msg.processId, msg.url);
     }

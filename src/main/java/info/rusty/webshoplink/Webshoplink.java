@@ -39,11 +39,12 @@ public final class Webshoplink {
     }
 
     /**
-     * Push the server-configured balance URL as soon as a player joins, so their
-     * overlay uses this server's page instead of whatever their local config says.
+     * Forget the player's client state and cancel any shop session they left open. The
+     * balance URL is pushed on login once the client says hello; see {@link Networking}.
      */
-    public static void onPlayerLoggedIn(ServerPlayer player) {
-        Networking.sendBalanceUrl(player);
+    public static void onPlayerLoggedOut(ServerPlayer player) {
+        Networking.onPlayerLoggedOut(player);
+        ShopCommands.onPlayerLoggedOut(player);
     }
 
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {

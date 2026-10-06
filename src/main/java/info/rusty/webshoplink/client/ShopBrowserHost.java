@@ -1,7 +1,7 @@
 package info.rusty.webshoplink.client;
 
-import com.cinemamod.mcef.MCEF;
-import com.cinemamod.mcef.MCEFBrowser;
+import de.keksuccino.rinku.Rinku;
+import de.keksuccino.rinku.RinkuBrowser;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.Minecraft;
 import org.cef.browser.CefBrowser;
@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
- * Owns the single, long-lived MCEF browser used for shop sessions.
+ * Owns the single, long-lived Rinku browser used for shop sessions.
  *
  * <p>Creating a Chromium browser per session is what produced the white flash at
  * the start of every shop: a brand-new browser has no painted frame yet, and the
@@ -35,7 +35,7 @@ import java.util.Base64;
  *   <li>a hard timeout, so a broken page can never wedge the screen shut.</li>
  * </ol>
  *
- * <p>Client-only: references MCEF and is reached exclusively from client code. Each loader
+ * <p>Client-only: references Rinku and is reached exclusively from client code. Each loader
  * forwards login/logout to {@link #onLoggingIn()} and {@link #onLoggingOut()}.
  */
 public final class ShopBrowserHost {
@@ -58,7 +58,7 @@ public final class ShopBrowserHost {
                     + "<style>html,body{margin:0;height:100%;background:transparent}</style>"
                     + "</head><body></body></html>").getBytes(StandardCharsets.UTF_8));
 
-    private static MCEFBrowser browser;
+    private static RinkuBrowser browser;
     private static boolean handlersRegistered;
 
     /** Non-null while a shop session is on screen. */
@@ -84,7 +84,7 @@ public final class ShopBrowserHost {
     /**
      * Create the browser (if needed) and park it on the blank page, so the first
      * {@code /shop} of a session is as instant as every later one. Safe to call
-     * before MCEF has finished initializing — it simply does nothing then.
+     * before Rinku has finished initializing — it simply does nothing then.
      */
     public static void warmUp() {
         if (ensureBrowser() != null) {
@@ -92,8 +92,8 @@ public final class ShopBrowserHost {
         }
     }
 
-    /** The shared browser, or {@code null} if MCEF isn't up yet. */
-    public static MCEFBrowser getBrowser() {
+    /** The shared browser, or {@code null} if Rinku isn't up yet. */
+    public static RinkuBrowser getBrowser() {
         return browser;
     }
 
@@ -105,7 +105,7 @@ public final class ShopBrowserHost {
     /** Navigate the shared browser to a session URL and hide it until it has painted. */
     public static void startSession(String url) {
         sessionToken++;
-        MCEFBrowser b = ensureBrowser();
+        RinkuBrowser b = ensureBrowser();
         if (b == null) {
             return;
         }
@@ -154,7 +154,7 @@ public final class ShopBrowserHost {
 
     /** Resize the browser to the area the shop screen gives it, in real pixels. */
     public static void resizeToShopViewport() {
-        MCEFBrowser b = browser;
+        RinkuBrowser b = browser;
         if (b == null) {
             return;
         }
@@ -170,17 +170,17 @@ public final class ShopBrowserHost {
         b.resize(Math.max(1, width), Math.max(1, height));
     }
 
-    private static MCEFBrowser ensureBrowser() {
+    private static RinkuBrowser ensureBrowser() {
         if (browser != null) {
             return browser;
         }
-        if (!MCEF.isInitialized()) {
+        if (!Rinku.isInitialized()) {
             return null;
         }
         registerHandlers();
         // transparent=true lets the page's transparent CSS background show the
         // game world behind the floating shop panel.
-        browser = MCEF.createBrowser(BLANK_PAGE, true);
+        browser = Rinku.createBrowser(BLANK_PAGE, true);
         lastPixelWidth = -1;
         lastPixelHeight = -1;
         return browser;
@@ -201,7 +201,7 @@ public final class ShopBrowserHost {
     }
 
     /**
-     * MCEF fans load/display events out to every browser it owns, so both handlers
+     * Rinku fans load/display events out to every browser it owns, so both handlers
      * filter for this one. CEF invokes them on its own thread; they only publish to
      * volatile fields and leave every browser call to the render thread.
      */
@@ -211,7 +211,7 @@ public final class ShopBrowserHost {
         }
         handlersRegistered = true;
 
-        MCEF.getClient().addLoadHandler(new CefLoadHandlerAdapter() {
+        Rinku.getClient().addLoadHandler(new CefLoadHandlerAdapter() {
             @Override
             public void onLoadEnd(CefBrowser cefBrowser, CefFrame frame, int httpStatusCode) {
                 if (isSessionLoad(cefBrowser, frame)) {
@@ -235,7 +235,7 @@ public final class ShopBrowserHost {
             }
         });
 
-        MCEF.getClient().addDisplayHandler(new CefDisplayHandlerAdapter() {
+        Rinku.getClient().addDisplayHandler(new CefDisplayHandlerAdapter() {
             @Override
             public void onTitleChange(CefBrowser cefBrowser, String title) {
                 if (cefBrowser == browser && sessionUrl != null && READY_TITLE.equals(title)) {

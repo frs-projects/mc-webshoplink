@@ -107,6 +107,16 @@ public class ShopCommands {
         // Log command execution
         DebugLogger.log("Player " + player.getName().getString() + " executed shop command with slug: " + shopSlug + ", label: " + finalShopLabel, Config.DebugVerbosity.MINIMAL);
         
+        // Without the client mod (and Rinku) there is nothing to show the shop in, so don't
+        // create a backend session the player could never open.
+        if (!Networking.isClientReady(player)) {
+            DebugLogger.log("Player " + player.getName().getString() + " has no WebshopLink client mod, not starting a session", Config.DebugVerbosity.MINIMAL);
+            player.sendSystemMessage(Component.literal(
+                    "This shop opens in an in-game browser. Please install the WebshopLink client mod and Rinku to use it.")
+                    .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
+            return 0;
+        }
+
         // Capture the player's current inventory for later verification
         InventorySnapshot inventorySnapshot = captureInventory(player);
         
@@ -118,37 +128,14 @@ public class ShopCommands {
         // Send debug to server console
         DebugLogger.log("Captured inventory for player " + player.getName().getString() + ": " + GSON.toJson(inventories, InventoryList.class), Config.DebugVerbosity.ALL);
         
-        // Check if we have an active shop process for this player
-        if (ACTIVE_SHOP_PROCESSES.values().stream().anyMatch(sp -> sp.getPlayerId().equals(player.getUUID()))) {
-            DebugLogger.log("Player " + player.getName().getString() + " already has an active shop process. Cancelling previous process.", Config.DebugVerbosity.MINIMAL);
-            
-            // Cancel the previous shop process
-            ACTIVE_SHOP_PROCESSES.values().stream()
-                .filter(sp -> sp.getPlayerId().equals(player.getUUID()))
-                .findFirst()
-                .ifPresent(shopProcess -> {
-                    ApiService.cancelShop(shopProcess.getProcessId(), player.getName().getString(), shopProcess.getTwoFactorCode())
-                        .thenAccept(success -> {
-                            if (success) {
-                                DebugLogger.log("Cancelled previous shop process for player " + player.getName().getString(), Config.DebugVerbosity.MINIMAL);
-                                player.sendSystemMessage(Component.literal("Your previous shopping process has been cancelled, starting a new one.").withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
-                                // Remove the cancelled process from the active map
-                                ACTIVE_SHOP_PROCESSES.remove(shopProcess.getProcessId());
-                            } else {
-                                DebugLogger.logError("Failed to cancel previous shop process for player " + player.getName().getString(), null);
-                                player.sendSystemMessage(Component.literal("Failed to cancel your previous shopping process. Please try again later.").withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
-                            }
-                        }).exceptionally(e -> {
-                            DebugLogger.logError("Error cancelling previous shop process", e);
-                            player.sendSystemMessage(Component.literal("Error cancelling your previous shopping process. Please try again later.").withStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
-                            return null;
-                        });
-                });
+        // Only one session per player: drop any unfinished one before starting the new one.
+        if (cancelPlayerSessions(player)) {
+            DebugLogger.log("Player " + player.getName().getString() + " already had an active shop process, cancelled it", Config.DebugVerbosity.MINIMAL);
         }
 
-        // Send API request to initiate shop process
+        // Send API request to initiate shop process; the response is handled on the server thread.
         ApiService.initiateShop(player.getUUID(), player.getName().getString(), shopSlug, inventories)
-            .thenAccept(shopResponse -> {
+            .thenAccept(shopResponse -> onServerThread(player, () -> {
                 try {
                     // Check if there was an error in the response
                     if (shopResponse.hasError()) {
@@ -181,16 +168,9 @@ public class ShopCommands {
                     shopProcess.setWebLink(shopResponse.getLink());
                     shopProcess.setTwoFactorCode(shopResponse.getTwoFactorCode());
                     
-                    // Open the shop in the player's in-game browser. This requires the
-                    // WebshopLink client mod (plus MCEF); if the player's client doesn't
-                    // have it, tell them to install it.
-                    if (Networking.isClientReady(player)) {
-                        Networking.openBrowser(player, processId, shopResponse.getLink());
-                    } else {
-                        player.sendSystemMessage(Component.literal(
-                                "This shop opens in an in-game browser. Please install the WebshopLink client mod and MCEF to use it.")
-                                .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW)));
-                    }
+                    // Open the shop in the player's in-game browser.
+                    DebugLogger.log("Opening shop browser for player " + player.getName().getString() + ", process: " + processId, Config.DebugVerbosity.DEFAULT);
+                    Networking.openBrowser(player, processId, shopResponse.getLink());
                 } catch (Exception e) {
                     DebugLogger.logError("Error processing shop response", e);
                     
@@ -198,12 +178,12 @@ public class ShopCommands {
                     ErrorResponse errorResponse = new ErrorResponse("Error processing shop response: " + e.getMessage(), 0);
                     displayErrorMessage(player, errorResponse);
                 }
-            }).exceptionally(e -> {
+            })).exceptionally(e -> {
                 DebugLogger.logError("Error connecting to shop API", e);
                 
                 // Create an ErrorResponse for connection errors and display to player
                 ErrorResponse errorResponse = new ErrorResponse("Failed to connect to shop server", 0);
-                displayErrorMessage(player, errorResponse);
+                onServerThread(player, () -> displayErrorMessage(player, errorResponse));
                 
                 return null;
             });
@@ -424,6 +404,39 @@ public class ShopCommands {
                         return null;
                     });
         });
+    }
+
+    /**
+     * Drops every session the player still has open, locally right away and with the API in
+     * the background. API failures are only logged: the usual cause is that the backend
+     * already expired the session, and an unconfirmed session expires there on its own anyway.
+     *
+     * @return whether the player had any session open
+     */
+    private static boolean cancelPlayerSessions(ServerPlayer player) {
+        boolean any = false;
+        for (ShopProcess shopProcess : ACTIVE_SHOP_PROCESSES.values()) {
+            if (!shopProcess.getPlayerId().equals(player.getUUID())
+                    || !ACTIVE_SHOP_PROCESSES.remove(shopProcess.getProcessId(), shopProcess)) {
+                continue;
+            }
+            any = true;
+            UUID processId = shopProcess.getProcessId();
+            ApiService.cancelShop(processId, player.getName().getString(), shopProcess.getTwoFactorCode())
+                    .exceptionally(e -> {
+                        DebugLogger.log("Previous shop process " + processId + " could not be cancelled with the API: "
+                                + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()), Config.DebugVerbosity.MINIMAL);
+                        return false;
+                    });
+        }
+        return any;
+    }
+
+    /** The player disconnected: their session can never be finished, so cancel it. */
+    static void onPlayerLoggedOut(ServerPlayer player) {
+        if (cancelPlayerSessions(player)) {
+            DebugLogger.log("Player " + player.getName().getString() + " logged out with an open shop process, cancelled it", Config.DebugVerbosity.MINIMAL);
+        }
     }
 
     /**

@@ -1,6 +1,6 @@
 package info.rusty.webshoplink.client;
 
-import com.cinemamod.mcef.MCEFBrowser;
+import de.keksuccino.rinku.RinkuBrowser;
 import info.rusty.webshoplink.Networking;
 import info.rusty.webshoplink.ShopActionPacket;
 import net.minecraft.client.gui.GuiGraphics;
@@ -12,7 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.UUID;
 
 /**
- * Full-screen in-game browser for a shop session. Renders the shared MCEF
+ * Full-screen in-game browser for a shop session. Renders the shared Rinku
  * (Chromium) browser owned by {@link ShopBrowserHost} into the area above a small
  * Minecraft button bar offering <em>Finish Trade</em> and <em>Cancel</em>. Closing
  * without choosing (ESC) cancels the session.
@@ -21,7 +21,7 @@ import java.util.UUID;
  * so that opening a shop never has to wait for (and flash through) a fresh
  * Chromium browser's first frame. See {@link ShopBrowserHost}.
  *
- * <p>Client-only: this class references MCEF and is reached exclusively through
+ * <p>Client-only: this class references Rinku and is reached exclusively through
  * {@link ClientShopBrowser}, which is only invoked on {@code Dist.CLIENT}.
  */
 public class ShopBrowserScreen extends Screen {
@@ -51,7 +51,7 @@ public class ShopBrowserScreen extends Screen {
 
     /** The page is on screen (as opposed to still loading behind the live world). */
     public boolean isShowingPage() {
-        MCEFBrowser browser = ShopBrowserHost.getBrowser();
+        RinkuBrowser browser = ShopBrowserHost.getBrowser();
         return browser != null && ShopBrowserHost.isPageReady() && browser.isTextureReady();
     }
 
@@ -102,8 +102,8 @@ public class ShopBrowserScreen extends Screen {
         // blit the page straight over the live world. Painting the usual dimming
         // gradient first would show through every transparent pixel of the page and
         // defeat the transparency.
-        MCEFBrowser browser = ShopBrowserHost.getBrowser();
-        ResourceLocation texture = isShowingPage() ? browser.getTextureLocation() : null;
+        RinkuBrowser browser = ShopBrowserHost.getBrowser();
+        ResourceLocation texture = isShowingPage() ? browser.getTextureIdentifier() : null;
         if (texture != null) {
             int w = getBrowserWidth();
             int h = getBrowserHeight();
@@ -119,8 +119,8 @@ public class ShopBrowserScreen extends Screen {
 
     // --- input routing to the browser -------------------------------------------------
 
-    /** The shared browser, or {@code null} if MCEF never came up. */
-    private MCEFBrowser browser() {
+    /** The shared browser, or {@code null} if Rinku never came up. */
+    private RinkuBrowser browser() {
         return ShopBrowserHost.getBrowser();
     }
 
@@ -142,7 +142,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        MCEFBrowser browser = browser();
+        RinkuBrowser browser = browser();
         if (browser == null || !inBrowser(mouseX, mouseY)) {
             return false;
         }
@@ -156,7 +156,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.mouseReleased(mouseX, mouseY, button)) {
             return true;
         }
-        MCEFBrowser browser = browser();
+        RinkuBrowser browser = browser();
         if (browser == null) {
             return false;
         }
@@ -166,7 +166,7 @@ public class ShopBrowserScreen extends Screen {
 
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
-        MCEFBrowser browser = browser();
+        RinkuBrowser browser = browser();
         if (browser != null && inBrowser(mouseX, mouseY)) {
             browser.sendMouseMove(browserX(mouseX), browserY(mouseY));
         }
@@ -186,7 +186,7 @@ public class ShopBrowserScreen extends Screen {
             return true;
         }
     *///?}
-        MCEFBrowser browser = browser();
+        RinkuBrowser browser = browser();
         if (browser == null || !inBrowser(mouseX, mouseY)) {
             return false;
         }
@@ -200,7 +200,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
-        MCEFBrowser browser = browser();
+        RinkuBrowser browser = browser();
         if (browser == null) {
             return false;
         }
@@ -214,7 +214,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.keyReleased(keyCode, scanCode, modifiers)) {
             return true;
         }
-        MCEFBrowser browser = browser();
+        RinkuBrowser browser = browser();
         if (browser == null) {
             return false;
         }
@@ -227,7 +227,7 @@ public class ShopBrowserScreen extends Screen {
         if (super.charTyped(codePoint, modifiers)) {
             return true;
         }
-        MCEFBrowser browser = browser();
+        RinkuBrowser browser = browser();
         if (browser == null || codePoint == 0) {
             return false;
         }
