@@ -1,7 +1,9 @@
 package info.rusty.webshoplink;
 
 import com.google.gson.*;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.nbt.*;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -102,7 +104,80 @@ public class NbtSerializer {
         
         return jsonArray;
     }
-      /**
+
+    /**
+     * The tag as SNBT. Unlike the JSON form it keeps every tag's exact type (bytes, shorts,
+     * floats, int arrays), so a stack that travels through the shop to another player, such as
+     * a market listing, comes back exactly as it left.
+     */
+    public static String toSnbt(CompoundTag tag) {
+        return tag.getAsString();
+    }
+
+    /**
+     * The tag an item's {@code snbt} describes, or {@code null} when it cannot be used: it does
+     * not parse, or it holds different values than the item's {@code nbt}. The JSON stays the
+     * authority, so a shop that edits {@code nbt} without updating {@code snbt} gets its edit
+     * rather than the stale SNBT.
+     */
+    @Nullable
+    public static CompoundTag fromSnbt(String snbt, JsonObject nbt) {
+        try {
+            CompoundTag tag = TagParser.parseTag(snbt);
+            return sameValues(serializeNbt(tag), nbt) ? tag : null;
+        } catch (CommandSyntaxException e) {
+            DebugLogger.log("Ignoring unparsable snbt: " + e.getMessage(), Config.DebugVerbosity.DEFAULT);
+            return null;
+        }
+    }
+
+    /**
+     * Whether two JSON trees hold the same values, numbers compared by value (the shop may
+     * write {@code 1.0} where the mod wrote {@code 1}, or re-print a float).
+     */
+    static boolean sameValues(JsonElement a, JsonElement b) {
+        if (a.isJsonObject() && b.isJsonObject()) {
+            JsonObject left = a.getAsJsonObject();
+            JsonObject right = b.getAsJsonObject();
+            if (!left.keySet().equals(right.keySet())) {
+                return false;
+            }
+            for (String key : left.keySet()) {
+                if (!sameValues(left.get(key), right.get(key))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a.isJsonArray() && b.isJsonArray()) {
+            JsonArray left = a.getAsJsonArray();
+            JsonArray right = b.getAsJsonArray();
+            if (left.size() != right.size()) {
+                return false;
+            }
+            for (int i = 0; i < left.size(); i++) {
+                if (!sameValues(left.get(i), right.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a.isJsonPrimitive() && b.isJsonPrimitive()) {
+            JsonPrimitive left = a.getAsJsonPrimitive();
+            JsonPrimitive right = b.getAsJsonPrimitive();
+            if (left.isNumber() && right.isNumber()) {
+                try {
+                    return left.getAsBigDecimal().compareTo(right.getAsBigDecimal()) == 0;
+                } catch (NumberFormatException e) {
+                    return false;
+                }
+            }
+            return left.equals(right);
+        }
+        return a.isJsonNull() && b.isJsonNull();
+    }
+
+    /**
      * TypeAdapter for CompoundTag to use with Gson
      */
     public static class CompoundTagAdapter implements JsonSerializer<CompoundTag>, JsonDeserializer<CompoundTag> {

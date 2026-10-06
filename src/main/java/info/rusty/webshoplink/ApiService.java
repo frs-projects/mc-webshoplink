@@ -39,6 +39,8 @@ public class ApiService {
         // Create request payload with the new structure
         Map<String, Object> payload = new HashMap<>();
         payload.put("playerId", playerId.toString());
+        // Lets the shop name the player to others, e.g. as the seller of a market listing.
+        payload.put("playerName", playerName);
         payload.put("shopSlug", shopSlug);
         
         payload.put("inventories", inventories);

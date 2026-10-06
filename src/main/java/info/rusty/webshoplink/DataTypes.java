@@ -243,8 +243,11 @@ public class DataTypes {
                     NbtDebugUtils.logItemStackNbt(stack, "Original item before serialization");
                     
                     // Use our custom NBT serializer to convert to JsonObject
-                    JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(StackNbt.get(stack));
+                    CompoundTag tag = StackNbt.get(stack);
+                    JsonObject nbtJson = (JsonObject) NbtSerializer.serializeNbt(tag);
                     nbtField.set(itemData, nbtJson);
+                    // The same data with its exact tag types, for shops that hand stacks back as they got them
+                    itemData.snbt = NbtSerializer.toSnbt(tag);
                     
                     // Log the serialized NBT JSON
                     DebugLogger.log("Serialized NBT to JSON for item " + itemKey.toString(), Config.DebugVerbosity.DEFAULT);
@@ -309,6 +312,8 @@ public class DataTypes {
         private String itemId;
         private Integer count;
         private JsonObject nbt;
+        // Optional: nbt as SNBT, with exact tag types. Used over nbt when both hold the same values.
+        private String snbt;
 
         public String getItemId() {
             return itemId;
@@ -320,6 +325,10 @@ public class DataTypes {
 
         public JsonObject getNbt() {
             return nbt;
+        }
+
+        public String getSnbt() {
+            return snbt;
         }
         
         public ItemStack getItemStackData() {
@@ -349,8 +358,14 @@ public class DataTypes {
                         DebugLogger.log("Converting NBT JSON to CompoundTag for item " + itemId, Config.DebugVerbosity.DEFAULT);
                         NbtDebugUtils.logJsonNbt(nbt, "Pre-conversion NBT JSON");
                         
-                        // Use the NbtSerializer to properly convert the JsonObject to a CompoundTag
-                        CompoundTag nbtData = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(nbt);
+                        // Prefer the typed SNBT when the shop sent it back unchanged, so the stack keeps its
+                        // exact tags (it may be another player's stack, e.g. bought on a market).
+                        CompoundTag nbtData = snbt != null ? NbtSerializer.fromSnbt(snbt, nbt) : null;
+                        if (nbtData == null) {
+                            nbtData = NbtSerializer.CompoundTagAdapter.parseJsonToCompoundTag(nbt);
+                        } else {
+                            DebugLogger.log("Using snbt for item " + itemId, Config.DebugVerbosity.DEFAULT);
+                        }
                         StackNbt.set(stack, nbtData);
                         
                         // Log for debugging

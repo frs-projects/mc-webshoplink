@@ -194,7 +194,7 @@ Your shop API must implement four endpoints. All are `POST` with `Content-Type: 
 
 | Endpoint (default path) | Request body | Success response (HTTP 200) |
 |---|---|---|
-| `/initiate` | `{ playerId, shopSlug, inventories }` | `{ uuid, link, twoFactorCode }` |
+| `/initiate` | `{ playerId, playerName, shopSlug, inventories }` | `{ uuid, link, twoFactorCode }` |
 | `/{uuid}/checkout` | `{ uuid, tfaCode }` | `{ inventory, echest }` — the **new** inventory |
 | `/{uuid}/setApplied` | `{ uuid, tfaCode }` | `{ "message": "Shop instance marked as applied" }` |
 | `/{uuid}/cancel` | `{ uuid, tfaCode }` | any 200 response |
@@ -207,6 +207,7 @@ Called when a player runs `/shop <type>`. The request carries the player's curre
 ```json
 {
   "playerId": "uuid-of-player",
+  "playerName": "Steve",
   "shopSlug": "shop-type",
   "inventories": {
     "inventory": { /* Inventory Data — see below */ },
@@ -214,6 +215,8 @@ Called when a player runs `/shop <type>`. The request carries the player's curre
   }
 }
 ```
+
+`playerName` is the player's current name (since 1.11.0), for showing the player to others, e.g. as the seller of a market listing. Key everything by `playerId`; names change.
 
 **Response**
 ```json
@@ -299,7 +302,8 @@ Both the inventory the mod sends (`/initiate`) and the inventory it expects back
         "nbt": {
           "display": { "Name": "{\"text\":\"Debug Blade\"}" }
           // any item NBT: Enchantments, RepairCost, etc.
-        }
+        },
+        "snbt": "{display:{Name:'{\"text\":\"Debug Blade\"}'}}"
       }
     }
   },
@@ -312,6 +316,7 @@ Both the inventory the mod sends (`/initiate`) and the inventory it expects back
 
 - Each entry under `items` is keyed by its **slot index** and holds the fully serialized item in that slot.
 - `nbt` is optional and only present for items that carry NBT.
+- `snbt` (since 1.11.0) is the same data as an SNBT string, sent alongside every `nbt`. Unlike the JSON it keeps each tag's exact type. It is optional in both directions: return it unchanged with a stack you hand back, or leave it out. See [Keeping exact NBT](#keeping-exact-nbt).
 
 ### NBT notes
 
@@ -323,6 +328,24 @@ encoded the way `/give` writes it: keys are component ids such as `minecraft:cus
 `minecraft:enchantments` or `minecraft:custom_name`. An item sent by a 1.20.1 server therefore
 looks different from the same item sent by a 1.21.1 server, and a shop serving both must store
 and return the shape that matches the server it is talking to.
+
+### Keeping exact NBT
+
+JSON has no byte, short, float or int-array types, so the `nbt` form loses them, and the mod rebuilds whole numbers as ints, decimals as doubles and arrays as lists. Usually that is harmless, but a rebuilt stack no longer stacks with an identical untouched one (`lvl:5s` is not `lvl:5`), and tags that must be an int array, such as UUIDs in attribute modifiers or player heads, no longer load on 1.20.1.
+
+When a slot you return carries `snbt`, the mod parses it and uses it instead of `nbt`, **but only if it holds the same values as `nbt`** (numbers compared by value). `nbt` stays the authority: if you edit `nbt` and leave a stale `snbt` next to it, your edit wins and the `snbt` is ignored. So the rule for a shop is simple: when a stack goes back out as it came in, possibly to another player, keep its `snbt` with it; when you build or change a stack, send `nbt` only.
+
+Untouched slots are unaffected either way: the mod only rewrites a slot whose item, count or `nbt` differs from what the player holds.
+
+---
+
+## Player markets
+
+A shop can let players trade with each other, for example a market where players list stacks at their own price and others buy them. Nothing in the contract changes for that: listing, buying and withdrawing are trades inside a session like any other. Things that make it work well:
+
+- **Seller names**: `/initiate` carries `playerName`, so listings can show who sells them.
+- **Stacks travel as they are**: store a listed stack's `itemId`, `count`, `nbt` *and* `snbt` and return all four to the buyer, so the buyer gets exactly the seller's item (see [Keeping exact NBT](#keeping-exact-nbt)).
+- **Settle on `setApplied`**: only take a listing off the market, and pay its seller, when the buyer's session applies. If another session bought or withdrew it in the meantime, answer `setApplied` with a non-200 status and `{ "error": "Item not available: <item name>" }`: the mod leaves the player's inventory untouched and tells them `<item name> is no longer available` and why. A balance that no longer covers the trade works the same with `Transaction failed: insufficient funds`.
 
 ---
 

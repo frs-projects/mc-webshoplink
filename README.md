@@ -30,7 +30,7 @@ Player ──/shop──▶ WebshopLink (server) ──HTTP──▶ Your shop A
 - **Inventory verification** — purchases are rejected if the player's inventory changed between starting the session and confirming, preventing duping/race exploits.
 - **Two-factor session code** — an anti-tampering code is exchanged with your API on every call so sessions can't be forged from outside.
 - **API key support** — every request to your shop API carries a configurable `X-Webshop-Api-Key` header.
-- **Main inventory + Ender Chest** support, with full NBT serialization for complex items.
+- **Main inventory + Ender Chest** support, with full NBT serialization for complex items. Each item also carries its exact SNBT, so stacks traded between players (e.g. on a [player market](WIKI.md#player-markets)) arrive unchanged.
 - **Balance overlay (optional)** — a small HUD box in a configurable screen corner renders your shop's balance page, so players always see their balance. On by default; the server pushes its `balanceUrl` to clients, with position, size, and a URL fallback in client-side config. See [Balance overlay](WIKI.md#balance-overlay).
 - **Optional networking** — the mod registers its network channel as optional, so vanilla clients (or clients without the mod) can still connect to the server; they just can't open the browser.
 

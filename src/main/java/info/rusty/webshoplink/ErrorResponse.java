@@ -112,6 +112,30 @@ public class ErrorResponse extends RuntimeException {
     }
     
     /**
+     * Checks if an item ran out between trading and applying: shop stock sold out, or a market
+     * listing another player bought or withdrew first ("Item not available: <item>").
+     */
+    public boolean isItemUnavailable() {
+        return errorMessage != null && errorMessage.toLowerCase().contains("item not available");
+    }
+
+    /**
+     * What the message names after its first colon, such as the item in
+     * "Item not available: Diamond", or null when it names nothing.
+     */
+    public String getDetail() {
+        if (errorMessage == null) {
+            return null;
+        }
+        int colon = errorMessage.indexOf(':');
+        if (colon < 0) {
+            return null;
+        }
+        String detail = errorMessage.substring(colon + 1).trim();
+        return detail.isEmpty() ? null : detail;
+    }
+
+    /**
      * Checks if error is related to payment issues
      */
     public boolean isPaymentError() {
@@ -176,6 +200,8 @@ public class ErrorResponse extends RuntimeException {
             return "Server Maintenance";
         } else if (isRateLimitError()) {
             return "Rate Limited";
+        } else if (isItemUnavailable()) {
+            return "Item No Longer Available";
         } else if (isInvalidPurchaseError()) {
             return "Invalid Purchase";
         } else if (isPaymentError()) {
@@ -219,6 +245,10 @@ public class ErrorResponse extends RuntimeException {
                    .withStyle(Style.EMPTY.withColor(ChatFormatting.RED));
         } else if (isRateLimitError()) {
             return Component.literal("You've made too many requests. Please wait a moment before trying again.")
+                   .withStyle(Style.EMPTY.withColor(ChatFormatting.RED));
+        } else if (isItemUnavailable()) {
+            String item = getDetail();
+            return Component.literal(item != null ? item + " is no longer available." : "An item in your trade is no longer available.")
                    .withStyle(Style.EMPTY.withColor(ChatFormatting.RED));
         } else if (isInvalidPurchaseError()) {
             return Component.literal("Your purchase contains invalid or unavailable items.")
@@ -269,11 +299,14 @@ public class ErrorResponse extends RuntimeException {
         } else if (isRateLimitError()) {
             return Component.literal("Rate limits help protect the server. Wait a minute before trying again.")
                    .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW));
+        } else if (isItemUnavailable()) {
+            return Component.literal("It sold out, or another player bought or withdrew that market listing first. Nothing was changed; open the shop again to see what is left.")
+                   .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW));
         } else if (isInvalidPurchaseError()) {
             return Component.literal("Some items may be out of stock or no longer available. Try adjusting your cart.")
                    .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW));
         } else if (isPaymentError()) {
-            return Component.literal("Check your payment details or try using a different payment method.")
+            return Component.literal("Your balance no longer covers this trade. Nothing was changed; open the shop again and sell something first or buy less.")
                    .withStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW));
         } else if (isTimeoutError()) {
             return Component.literal("The shop server may be experiencing high traffic. Please try again later.")
