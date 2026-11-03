@@ -78,6 +78,10 @@ By default anyone can run `/shop`. To restrict it to operators/command blocks (s
 
 ## Building
 
+The build logic is the `framework/` submodule
+([frs-projects/mod-framework](https://github.com/frs-projects/mod-framework)), shared with the other
+FRS-Projects mods. Clone with `--recurse-submodules`, or run `git submodule update --init` after cloning.
+
 The build is the same framework as the other FRS-Projects mods:
 [Stonecutter](https://stonecutter.kikugie.dev/) with Architectury Loom, one source tree, and one
 node per Minecraft version and loader. Gradle 9.7 runs its daemon on **Java 25**, so a JDK 25
