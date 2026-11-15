@@ -1,5 +1,11 @@
 # WebshopLink
 
+| Side | Status | Notes |
+| --- | --- | --- |
+| **Server** | Required | Talks to your shop API and applies purchases. |
+| **Client** | Optional | Needed to open the in-game browser; needs [Rinku](https://modrinth.com/mod/rinku) 3.0.0+. Players without it can still join, and `/shop` tells them to install it. |
+| **Singleplayer** | Supported | Needs Rinku and a reachable shop API. |
+
 A Minecraft Forge / NeoForge mod that lets players browse and use an external web shop **inside an in-game browser window**, then have the purchased items applied straight to their inventory.
 
 > Throughout the docs this project is referred to as a "mod", even where a plugin version is discussed — the functionality is the same regardless.
